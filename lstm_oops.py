@@ -866,7 +866,7 @@ if __name__ == "__main__":
         global testlog
         # learn test string
         # the outputs scaled to range 0..255 and rounded to get ASCII
-        eTerms=0
+        eTerms=0.0
         inputs[0].write(0) # no input used for this test
         result=""
         for c in test:
@@ -874,7 +874,11 @@ if __name__ == "__main__":
             # compare output to expect and calculate error squares
             o1=ord(c)
             o2=round(outputs[0].read()*255)
-            eTerms+=(o2-o1)*(o2-o1)
+            # noramlize the ord to a fraction so that unrounded
+            # output may be used for error calculation
+            of1=float(o1)
+            of2=outputs[0].read()*255.0
+            eTerms+=(of2-of1)*(of2-of1)
             result=result+chr(o2)
         eDist=math.sqrt(float(eTerms))
         fitness=-eDist
@@ -892,7 +896,7 @@ if __name__ == "__main__":
     for pfx in range(len(test)):
         subTest=partial(Tester,test=test[0:pfx+1])
         Trainer.changeEvaluator(subTest)
-        while (Trainer.solutions[0][1]<-0.000000001):
+        while round(Trainer.solutions[0][1])<0:
             Trainer.TrainingEpoch()
             lastSolve=log.last('solveLog')
             if lastSolve is not None:
