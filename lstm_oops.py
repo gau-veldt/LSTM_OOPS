@@ -796,7 +796,7 @@ if __name__ == "__main__":
         ]
 
     output_connections=[
-        "B0"
+        "C0"
         ]
     
     nodes   = { idx      : LSTM_Node() for idx in node_labels}
