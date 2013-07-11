@@ -647,6 +647,7 @@ class OOPS:
         TS_now=self.saveState()
         searchTerm={'w':self.saveWeights(),'s':TS_now,'r':self.rank}
         # try past solutions at current state
+        """
         for past in self.solutions:
             ((pW,pC),pR)=past
             self.loadWeights(pW)
@@ -657,6 +658,7 @@ class OOPS:
                 searchTerm['s']=TS_now
                 searchTerm['r']=rk
                 log.log(log.last(),which='solveLog')
+        """
         # create some mutations
         mutantCount=0
         sLen=len(self.solutions)
