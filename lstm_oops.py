@@ -683,8 +683,8 @@ class OOPS:
                 op=round(EntropySource.uniform(1,len(self.mutationOps)-1))
                 self.mutationOps[op](mutant)
             """
-            p=math.cos(EntropySource.uniform(0,math.pi))
             for idx in range(len(mutant)):
+                p=math.cos(EntropySource.uniform(0,math.pi))
                 mutant[idx]=mutant[idx]*2.0*p
         for mutant in mutants:
             # test at TS_now
