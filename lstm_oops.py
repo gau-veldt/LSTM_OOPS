@@ -893,9 +893,9 @@ if __name__ == "__main__":
             Trainer.TrainingEpoch()
             lastSolve=log.last('solveLog')
             if lastSolve is not None:
-                print("Epoch %s: %s (%s solutions)" % (str(epoch).rjust(10,'0'),
-                                                       lastSolve,
-                                                       len(Trainer.solutions)))
+                gotcha=["+","-"][round(Trainer.solutions[0][1])<0]
+                print("Epoch %s %s %s (%s solutions)" % (str(epoch).rjust(10,'0'),
+                      gotcha,lastSolve,len(Trainer.solutions)))
             epoch+=1
         #prefixes.append(Trainer.solutions[0])
         #Trainer.solutions=[]+prefixes
