@@ -657,15 +657,20 @@ class OOPS:
                 log.log(log.last(),which='solveLog')
         # create some mutations
         mutantCount=round(EntropySource.uniform(1,16))
-        mutants=[[]+searchTerm['w'] for mut in range(mutantCount)]
+        # pick random first parents
+        mutants=[
+            []+self.solutions[round(EntropySource.uniform(0,len(self.solutions)-1))][0][0]
+            for mut in range(mutantCount)]
+        # one random muttion per gene (weight)
         mCount=len(self.net.connections)
         for mutant in mutants:
             mutationCount=round(EntropySource.uniform(1,mCount))
-            # splice (mating to another)
-            self.mutationOps[4](mutant)
+            # splice (mating to second random parent)
+            self.mutationOps[0](mutant)
             # mutate mutant
             for mutations in range(mutationCount):
-                op=round(EntropySource.uniform(0,len(self.mutationOps)-2))
+                # apply randomly chosen mutation operator (other than splice)
+                op=round(EntropySource.uniform(1,len(self.mutationOps)-1))
                 self.mutationOps[op](mutant)
         for mutant in mutants:
             # test at TS_now
@@ -699,6 +704,8 @@ class OOPS:
         self.net.Activate()
 
     def mutateTumor(self,chrom):
+        # similar to Radical but affects a
+        # randomly chosen section of the victim
         p1=round(EntropySource.uniform(0,len(chrom)))
         p2=p1
         while p2==p1:
@@ -708,7 +715,7 @@ class OOPS:
         ugly=[0.0]*(rhs-lhs)
         for c in range(rhs-lhs):
             radical=EntropySource.uniform(-6.0,6.0)
-            ugly[where]=radical
+            ugly[c]=radical
         chrom[lhs:rhs]=ugly
     def mutateRadical(self,chrom):
         where=round(EntropySource.uniform(0,len(chrom)-1))
