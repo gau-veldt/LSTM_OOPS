@@ -596,6 +596,9 @@ class OOPS:
         # randomize initial weights
         for c in self.net.connections:
             self.net.connections[c]=EntropySource.uniform(-6,6)
+        for n in self.net.nodeRefs:
+            n.CEC=EntropySource.uniform(-6,6)
+            n.output=EntropySource.uniform(0,1)
 
         """
         arguments to evaluator:
