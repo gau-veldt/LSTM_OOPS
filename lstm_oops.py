@@ -630,16 +630,15 @@ class OOPS:
             self.rank=self.evaluator(self.net)
             # to change evaluator we need to reevaluate solutions
             # then resort them by descenidng fitness
-            print("*** Trainer changed - reevaluating solutions")
+            #print("*** Trainer changed - reevaluating solutions")
             for idx in range(len(self.solutions)):
                 ((sW,sS),sR)=self.solutions[idx]
                 self.loadSnapshot((sW,sS))
                 sR=self.evaluator(self.net)
-                print("  %s" % log.last())
-                self.solutions[idx]=((sW,sS),sR)
-                
+                #print("  %s" % log.last())
+                self.solutions[idx]=((sW,sS),sR)                
             self.loadSnapshot(save)
-            # resort solutions by descending fitness of new evaluation regime
+            # re-sort solutions by descending fitness of new evaluation regime
             self.solutions=sorted(self.solutions,key=lambda s:s[1],reverse=True)
 
     def TrainingEpoch(self):
@@ -659,7 +658,7 @@ class OOPS:
         # create some mutations
         mutantCount=round(EntropySource.uniform(1,16))
         mutants=[[]+searchTerm['w'] for mut in range(mutantCount)]
-        mCount=len(self.net.nodeRefs)
+        mCount=len(self.net.connections)
         for mutant in mutants:
             mutationCount=round(EntropySource.uniform(1,mCount))
             # splice (mating to another)
@@ -784,25 +783,12 @@ if __name__ == "__main__":
     net=Topology()
     inputs={}
     outputs={}
-    node_labels="ABCDEFGHIJKLMNOP"
+    node_labels="A,B,C"
 
     connections=[
-        "AI","AE","AC","AB",
-        "BJ","BF","BD","BA",
-        "CK","CG","CA","CD",
-        "DL","DH","DB","DC",
-        "EM","EA","EG","EF",
-        "FN","FB","FH","FE",
-        "GO","GC","GE","GH",
-        "HP","HD","HF","HG",
-        "IA","IM","IK","IJ",
-        "JB","JN","JL","JI",
-        "KC","KO","KI","KL",
-        "LD","LP","LJ","LK",
-        "ME","MI","MO","MN",
-        "NF","NJ","NP","NM",
-        "OG","OK","OM","OP",
-        "PH","PL","PN","PO",
+        "AA","AB","AC",
+        "BA","BB","BC",
+        "CA","CB","CC"
         ]
 
     input_connections=[
@@ -810,7 +796,7 @@ if __name__ == "__main__":
         ]
 
     output_connections=[
-        "P0"
+        "B0"
         ]
     
     nodes   = { idx      : LSTM_Node() for idx in node_labels}
@@ -890,7 +876,7 @@ if __name__ == "__main__":
 
     test="Hello, World!"
 
-    prefixes=[]
+    #prefixes=[]
     epoch=1
     print("Goal sequence: %s" % test)
     for pfx in range(len(test)):
@@ -904,5 +890,5 @@ if __name__ == "__main__":
                                                        lastSolve,
                                                        len(Trainer.solutions)))
             epoch+=1
-        prefixes.append(Trainer.solutions[0])
-        Trainer.solutions=[]+prefixes
+        #prefixes.append(Trainer.solutions[0])
+        #Trainer.solutions=[]+prefixes
