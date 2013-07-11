@@ -77,7 +77,6 @@ def sigmoid(x):
     rc=1/(1+math.exp(-x))
     return rc
 
-
 class TopologyError(Exception):
     """ When something goes wrong in topology """
     def __init__(self,val):
@@ -664,6 +663,7 @@ class OOPS:
         mLen=max(sLen,5)
         for i in range(sLen):
             mutantCount+=round(EntropySource.uniform(1,mLen))
+        mutantCount=1000
         # pick random first parents
         mutants=[
             []+self.solutions[
@@ -677,10 +677,15 @@ class OOPS:
             # splice (mating to second random parent)
             self.mutationOps[0](mutant)
             # mutate mutant
+            """
             for mutations in range(mutationCount):
                 # apply randomly chosen mutation operator (other than splice)
                 op=round(EntropySource.uniform(1,len(self.mutationOps)-1))
                 self.mutationOps[op](mutant)
+            """
+            p=math.cos(EntropySource.uniform(0,math.pi))
+            for idx in range(len(mutant)):
+                mutant[idx]=mutant[idx]*2.0*p
         for mutant in mutants:
             # test at TS_now
             self.loadWeights(mutant)
@@ -692,6 +697,7 @@ class OOPS:
                 searchTerm['r']=rk
                 log.log(log.last(),which='solveLog')
             # test at all previous solution eras
+            """
             for ((pW,era),pR) in self.solutions:
                 self.loadState(era)
                 rk=self.evaluator(self.net)
@@ -700,6 +706,7 @@ class OOPS:
                     searchTerm['s']=[]+era
                     searchTerm['r']=rk
                     log.log(log.last(),which='solveLog')
+            """
         # if we found something better store the solution
         if searchTerm['r']>self.solutions[0][1]:
             self.solutions=[((searchTerm['w'],searchTerm['s']),searchTerm['r'])]+\
