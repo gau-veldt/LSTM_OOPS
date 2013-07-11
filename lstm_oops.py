@@ -659,7 +659,9 @@ class OOPS:
         mutantCount=round(EntropySource.uniform(1,16))
         # pick random first parents
         mutants=[
-            []+self.solutions[round(EntropySource.uniform(0,len(self.solutions)-1))][0][0]
+            []+self.solutions[
+                round((len(self.solutions)-1)*(1.0-math.cos(EntropySource.uniform(0.0,halfPi))))
+                ][0][0]
             for mut in range(mutantCount)]
         # one random muttion per gene (weight)
         mCount=len(self.net.connections)
