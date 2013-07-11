@@ -659,15 +659,19 @@ class OOPS:
                 searchTerm['r']=rk
                 log.log(log.last(),which='solveLog')
         # create some mutations
-        mutantCount=round(EntropySource.uniform(1,16))
+        mutantCount=0
+        sLen=len(self.solutions)
+        mLen=max(sLen,5)
+        for i in range(sLen):
+            mutantCount+=round(EntropySource.uniform(1,mLen))
         # pick random first parents
         mutants=[
             []+self.solutions[
                 round((len(self.solutions)-1)*(1.0-math.cos(EntropySource.uniform(0.0,halfPi))))
                 ][0][0]
             for mut in range(mutantCount)]
-        # one random muttion per gene (weight)
-        mCount=len(self.net.connections)
+        # maximum random muttiond per gene
+        mCount=len(self.solutions)*len(self.net.connections)
         for mutant in mutants:
             mutationCount=round(EntropySource.uniform(1,mCount))
             # splice (mating to second random parent)
