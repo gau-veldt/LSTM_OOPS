@@ -671,7 +671,7 @@ class OOPS:
                 ][0][0]
             for mut in range(mutantCount)]
         # maximum random muttiond per gene
-        mCount=len(self.solutions)*len(self.net.connections)
+        mCount=len(self.solutions)+len(self.net.connections)
         for mutant in mutants:
             mutationCount=round(EntropySource.uniform(1,mCount))
             # splice (mating to second random parent)
