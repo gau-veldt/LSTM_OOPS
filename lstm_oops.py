@@ -788,14 +788,12 @@ class OOPS:
             for idx in range(len(mutant)):
                 p=2.0*searchCurve(EntropySource.uniform(0,math.pi))
                 if (alternate==0):
-                    # modify "good" weights
+                    # mutate "good" weights
                     mutant[idx]=mutant[idx]+p*self.weightAffect[idx]
                 else:
-                    # modify "bad" weights
+                    # mutate "bad" weights
                     mutant[idx]=mutant[idx]+p*(1.0-self.weightAffect[idx])
                 alternate=oscillateAlternate-alternate
-                    
-        for mutant in mutants:
             # test at TS_now
             self.loadWeights(mutant)
             self.loadState(TS_now)
@@ -1013,8 +1011,8 @@ if __name__ == "__main__":
     #prefixes=[]
     epoch=1
     print("Goal sequence: %s" % test)
-    for pfx in range(len(test)):
-    #for pfx in [len(test)-1]:
+    #for pfx in range(len(test)):
+    for pfx in [len(test)-1]:
         subTest=partial(Tester,test=test[0:pfx+1])
         Trainer.changeEvaluator(subTest)
         while round(Trainer.solutions[0][1])<0:
