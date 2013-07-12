@@ -707,7 +707,7 @@ class OOPS:
                 pygame.draw.line(visual,(0,0,0),  (16+x*6,120),(16+x*6,120+xPrevBar),2)
                 pygame.draw.line(visual,(255,0,255),(16+x*6,220),(16+x*6,220-prevBar),2)
                 pygame.draw.line(visual,(0,0,0),  (19+x*6,120),(19+x*6,120+xCurBar),2)
-                pygame.draw.line(visual,(255,255,0),(19+x*6,220),(19+x*6,220-curBar),2)
+                pygame.draw.line(visual,(128,0,255),(19+x*6,220),(19+x*6,220-curBar),2)
 
         if elapsed>framerate:
           pygame.display.flip()
@@ -737,19 +737,27 @@ class OOPS:
         for idx in range(weightCount):
             magnitude=math.fabs(currentWts[idx]-priorWts[idx])
             change=magnitude*(netFitness/fScale)
-            topChg=max(topChg,change)
-            btmChg=min(btmChg,change)
+            topChg=max(topChg,magnitude)
+            btmChg=min(btmChg,magnitude)
         offset=btmChg
         scale=topChg-btmChg
         if scale==0.0:
             # prevent dividum byzeroum
             scale=1e-300
+        minAff=0
+        maxAff=0
         for idx in range(weightCount):
             magnitude=math.fabs(currentWts[idx]-priorWts[idx])
-            change=magnitude*(netFitness/fScale)
-            change=(change-offset)/scale
-            affect=(self.weightAffect[idx]+change)/2.0
+            change=(magnitude/scale)*(netFitness/fScale)
+            affect=self.weightAffect[idx]+change
             self.weightAffect[idx]=affect
+            minAff=min(minAff,affect)
+            maxAff=max(maxAff,affect)
+        offset=minAff
+        scale=maxAff-minAff
+        for idx in range(weightCount):
+            nAffect=(self.weightAffect[idx]-offset)/scale
+            self.weightAffect[idx]=nAffect
 
     def changeEvaluator(self,testFunc):
         self.evalfunc=testFunc
@@ -835,13 +843,17 @@ class OOPS:
                 self.mutationOps[op](mutant)
             """
             for idx in range(len(mutant)):
-                p=2.0*searchCurve(EntropySource.uniform(0,math.pi))
+                new=EntropySource.uniform(-6,6)
+                org=mutant[idx]
+                aff=self.weightAffect[idx]
                 if (alternate==0):
                     # mutate "good" weights
-                    mutant[idx]=mutant[idx]+p*self.weightAffect[idx]
+                    # aff=0.0 is org, aff=1.0 is new
+                    mutant[idx]=org*(1.0-aff)+new*aff
                 else:
                     # mutate "bad" weights
-                    mutant[idx]=mutant[idx]+p*(1.0-self.weightAffect[idx])
+                    # aff=1.0 is org, aff=0.0 is new
+                    mutant[idx]=org*aff+new*(1.0-aff)
             alternate=oscillateAlternate-alternate
             # test at TS_now
             self.loadWeights(mutant)
