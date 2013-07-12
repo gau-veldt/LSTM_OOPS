@@ -843,7 +843,7 @@ class OOPS:
             for idx in range(len(mutant)):
                 new=EntropySource.uniform(-6,6)
                 org=mutant[idx]
-                aff=self.weightAffect[idx]/100.0
+                aff=self.weightAffect[idx]/10000.0
                 if (alternate==0):
                     # mutate "good" weights
                     # aff=0.0 is org, aff=1.0 is new
