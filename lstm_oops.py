@@ -965,15 +965,13 @@ if __name__ == "__main__":
         net=Topology()
         inputs={}
         outputs={}
-        node_labels="A,B,C,D,E,F"
+        node_labels="A,B,C,D"
 
         connections=[
-                "AB","AC","AD","AE","AF",
-                "BA","BC","BD","BE","BF",
-                "CA","CB","CD","CE","CF",
-                "DA","DB","DC","DE","DF",
-                "EA","EB","EC","ED","EF",
-                "FA","FB","FC","FD","FE"
+                "AA","AB","AC","AD",
+                "BA","BB","BC","BD",
+                "CA","CB","CC","CD",
+                "DA","DB","DC","DD"
             ]
 
         input_connections=[
@@ -981,7 +979,7 @@ if __name__ == "__main__":
             ]
 
         output_connections=[
-            "E0"
+            "D0"
             ]
         
         nodes   = { idx      : LSTM_Node() for idx in node_labels}
