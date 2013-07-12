@@ -623,6 +623,90 @@ class OOPS:
         if self.evaluator is None:
             raise TypeError("OOPS: No evaluator specified.")
 
+        """
+        when net improves we remember which weights were changed
+        and the activity is weighted by the degree of change that
+        resulted.  Whenever updated the vector is normalized
+        to have maximum activity 1.0
+
+        so genarlly whenever a weight participates in a better result
+        its activity increases by 1.0 however we will scale the change
+        by the net change in fitness from the previous best
+
+        also 1.0 assumes weights are always modified by a fixed constant
+        or not at all so I further scale by the distance of the change
+        made to the weight.
+
+        the noise inducers have a choice to either cause more noise
+        to affective "good" weights that have raised fitness or cause noise
+        on "bad" weights that have lowered fitness.
+
+        The affect will basically allow filtering modifications to allow
+        those that have the best history of improving fitness and attenuate
+        the ones that negated the fitness.  It's a very poor man's analogue
+        to a kalman filter and as such uses no matrix math nor derivatives.
+
+        Again I want to avoid gradient based training since it has the
+        issue of local minima.  I also want something adaptive (the fitness
+        function is ALLOWED to change).  The ability of the fitness metric
+        to change is exactly why 50% of the search should be in "bad"
+        weightspace and 50% in known "good" weightspace.
+
+        We will do 50% of each
+
+        Ideally affect would be managed separate such that one affect vector
+        is tracker for every internal RNN state reached.  This has intractable
+        storage requirements.
+
+        the affect is a global training aspect and should
+        be updated by all tests (every mutant uddates this metric)
+
+        we are trying to make the mutator smarter over time by coming up with
+        some data about where in the weightspace to do mutations
+        """
+        self.resetAffect()
+
+    def resetAffect(self):
+        self.weightAffect=[1.0]*len(self.net.connections)
+        self.affectOffset=0.0
+        self.affectScale=0.0
+
+    def updateAffect(self,priorWts,currentWts,netFitness):
+        """
+        Updates weight affects then renormalizes to [0,1]
+        where 0 is worst affect, 1 is best
+        """
+        if len(priorWts)-len(currentWts)+len(self.weightAffect)-len(priorWts)!=0:
+               raise TypeErorr("updateActivity: Incompatible weightspaces (sizes differ).")
+        top=float("-Inf")
+        btm=float("Inf")
+        scale=self.affectScale
+        offset=self.affectOffset
+        for idx in range(len(priorWts)):
+               magnitude=math.fabs(currentWts[idx]-priorWts[idx])
+               change=magnitude*netFitness
+               # convert normalized back to unnormalized
+               affect=offset+self.weightAffect[idx]*scale
+               # add unnormalized change to affect
+               affect+=change
+               self.weightAffect[idx]=affect
+               top=max(top,affect)
+               btm=min(btm,affect)
+        # renormalize affects to [0,1]
+        if top==btm:
+            # real inprobable corner case
+            # that will cause dividum byzeroum bug
+            # if all changes makes all affects equal
+            # (in practice this should *never* happen)
+            # Solution is easy: reset to 1.0
+            self.resetWeightAffect()
+        else:
+            self.affectScale=top-btm
+            self.affectOffset=btm
+            for idx in range(len(priorWts)):
+                a=self.weightAffect[idx]
+                a=(a-btm)/(top-btm)
+                self.weightAffect[idx]=a
 
     def changeEvaluator(self,testFunc):
         self.evaluator=testFunc
@@ -659,6 +743,7 @@ class OOPS:
             self.loadState(TS_now)
             rk=self.evaluator(self.net)
             if rk>searchTerm['r']:
+                self.updateAffect(pW,searchTerm['w'],rk-searchTerm['r'])
                 searchTerm['w']=[]+pW
                 searchTerm['s']=TS_now
                 searchTerm['r']=rk
@@ -676,8 +761,19 @@ class OOPS:
                 round((len(self.solutions)-1)*(1.0-math.cos(EntropySource.uniform(0.0,halfPi))))
                 ][0][0]
             for mut in range(mutantCount)]
-        # maximum random muttiond per gene
-        mCount=len(self.solutions)+len(self.net.connections)
+        # maximum random mutation operators per gene
+        #mCount=len(self.solutions)+len(self.net.connections)
+        alternate=0
+        # will cylce good/bad affects
+        oscillateAlternate=1
+        if (self.affectScale==0.0):
+            # if affect is in a reset state
+            # we don't want to oscillate
+            # since it means 50% of mutants
+            # won't be modified at all on first
+            # pass and thus wasted
+            oscillateAlternate=0
+        mCount=len(self.net.connections)+len(self.net.nodeRefs)
         for mutant in mutants:
             mutationCount=round(EntropySource.uniform(1,mCount))
             # splice (mating to second random parent)
@@ -690,14 +786,22 @@ class OOPS:
                 self.mutationOps[op](mutant)
             """
             for idx in range(len(mutant)):
-                p=searchCurve(EntropySource.uniform(0,math.pi))
-                mutant[idx]=mutant[idx]+2.0*p
+                p=2.0*searchCurve(EntropySource.uniform(0,math.pi))
+                if (alternate==0):
+                    # modify "good" weights
+                    mutant[idx]=mutant[idx]+p*self.weightAffect[idx]
+                else:
+                    # modify "bad" weights
+                    mutant[idx]=mutant[idx]+p*(1.0-self.weightAffect[idx])
+                alternate=oscillateAlternate-alternate
+                    
         for mutant in mutants:
             # test at TS_now
             self.loadWeights(mutant)
             self.loadState(TS_now)
             rk=self.evaluator(self.net)
             if rk>searchTerm['r']:
+                self.updateAffect(mutant,searchTerm['w'],rk-searchTerm['r'])
                 searchTerm['w']=[]+mutant
                 searchTerm['s']=TS_now
                 searchTerm['r']=rk
@@ -707,6 +811,7 @@ class OOPS:
                 self.loadState(era)
                 rk=self.evaluator(self.net)
                 if rk>searchTerm['r']:
+                    self.updateAffect(mutant,searchTerm['w'],rk-searchTerm['r'])
                     searchTerm['w']=[]+mutant
                     searchTerm['s']=[]+era
                     searchTerm['r']=rk
@@ -908,8 +1013,8 @@ if __name__ == "__main__":
     #prefixes=[]
     epoch=1
     print("Goal sequence: %s" % test)
-    #for pfx in range(len(test)):
-    for pfx in [len(test)-1]:
+    for pfx in range(len(test)):
+    #for pfx in [len(test)-1]:
         subTest=partial(Tester,test=test[0:pfx+1])
         Trainer.changeEvaluator(subTest)
         while round(Trainer.solutions[0][1])<0:
