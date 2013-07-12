@@ -25,6 +25,13 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
+import pygame,os
+pygame.init()
+size=(640,480)
+visual=pygame.display.set_mode(size,pygame.DOUBLEBUF)
+elapsed=0
+since=pygame.time.get_ticks()
+framerate=1000.0/60.0
 
 import math
 import random
@@ -617,10 +624,10 @@ class OOPS:
             completely ready to test, when called
         """
         self.solutions=[]
-        self.evaluator=None
+        self.evalfunc=None
         if 'Evaluator' in kwargs:
             self.changeEvaluator(kwargs['Evaluator'])
-        if self.evaluator is None:
+        if self.evalfunc is None:
             raise TypeError("OOPS: No evaluator specified.")
 
         """
@@ -666,6 +673,49 @@ class OOPS:
         """
         self.resetAffect()
 
+    def evaluator(self,net,**kwargs):
+        global visual,elapsed,since,framerate
+        
+        for evt in pygame.event.get():
+            if evt.type == pygame.QUIT:
+                raise KeyboardInterrupt
+        now=pygame.time.get_ticks()
+        delta=now-since
+        elapsed+=delta
+        since=now
+            
+        weightCount=len(self.net.connections)
+        
+        newRk=self.evalfunc(net)
+        self.minFitness=min(self.minFitness,newRk)
+        self.maxFitness=max(self.maxFitness,newRk)
+        
+        if 'original' in kwargs and 'current' in kwargs and 'originalFitness' in kwargs:
+            org=kwargs['original']
+            cur=kwargs['current']
+            oldRk=kwargs['originalFitness']
+            self.updateAffect(org,cur,newRk-oldRk)
+            for x in range(weightCount):
+                bar=100*self.weightAffect[x]
+                xbar=100-bar
+                pygame.draw.line(visual,(0,0,0),(16+x*6,10),(16+x*6,10+xbar),5)
+                pygame.draw.line(visual,(0,255,255),(16+x*6,110),(16+x*6,110-bar),5)
+                prevBar=100*sigmoid(org[x])
+                xPrevBar=100-prevBar
+                curBar=100*sigmoid(cur[x])
+                xCurBar=100-curBar
+                pygame.draw.line(visual,(0,0,0),  (16+x*6,120),(16+x*6,120+xPrevBar),2)
+                pygame.draw.line(visual,(255,0,255),(16+x*6,220),(16+x*6,220-prevBar),2)
+                pygame.draw.line(visual,(0,0,0),  (19+x*6,120),(19+x*6,120+xCurBar),2)
+                pygame.draw.line(visual,(255,255,0),(19+x*6,220),(19+x*6,220-curBar),2)
+
+        if elapsed>framerate:
+          pygame.display.flip()
+          while elapsed>framerate:
+              elapsed-=framerate
+        
+        return newRk
+
     def resetAffect(self):
         self.weightAffect=[1.0]*len(self.net.connections)
         self.affectInit=True
@@ -675,45 +725,59 @@ class OOPS:
         Updates weight affects then renormalizes to [0,1]
         where 0 is worst affect, 1 is best
         """
+        weightCount=len(priorWts)
         self.affectInit=False
         if len(priorWts)-len(currentWts)+len(self.weightAffect)-len(priorWts)!=0:
             raise TypeErorr("updateActivity: Incompatible weightspaces (sizes differ).")
         topChg=float("-Inf")
         btmChg=float("Inf")
-        for idx in range(len(priorWts)):
+        fScale=self.maxFitness-self.minFitness
+        if fScale==0.0:
+            fScale=1.0
+        for idx in range(weightCount):
             magnitude=math.fabs(currentWts[idx]-priorWts[idx])
-            change=magnitude*netFitness
+            change=magnitude*(netFitness/fScale)
             topChg=max(topChg,change)
-            btmChg=min(topChg,change)
+            btmChg=min(btmChg,change)
         offset=btmChg
         scale=topChg-btmChg
-        for idx in range(len(priorWts)):
+        if scale==0.0:
+            # prevent dividum byzeroum
+            scale=1e-300
+        for idx in range(weightCount):
             magnitude=math.fabs(currentWts[idx]-priorWts[idx])
-            change=((magnitude*netFitness)-offset)/scale
+            change=magnitude*(netFitness/fScale)
+            change=(change-offset)/scale
             affect=(self.weightAffect[idx]+change)/2.0
             self.weightAffect[idx]=affect
 
     def changeEvaluator(self,testFunc):
-        self.evaluator=testFunc
+        self.evalfunc=testFunc
+        self.minFitness=float("Inf")
+        self.maxFitness=float("-Inf")
         if self.solutions==[]:
             save=self.saveSnapshot()
-            rank=self.evaluator(self.net)
+            rank=self.evalfunc(self.net)
+            self.minFitness=min(self.minFitness,rank)
+            self.maxFitness=max(self.minFitness,rank)
             log.log(log.last(),which='solveLog')
             self.solutions=[(save,rank)]
             self.rank=rank
             self.loadSnapshot(save)
         else:
             save=self.saveSnapshot()
-            self.rank=self.evaluator(self.net)
+            self.rank=self.evalfunc(self.net)
             # to change evaluator we need to reevaluate solutions
             # then resort them by descenidng fitness
             #print("*** Trainer changed - reevaluating solutions")
             for idx in range(len(self.solutions)):
                 ((sW,sS),sR)=self.solutions[idx]
                 self.loadSnapshot((sW,sS))
-                sR=self.evaluator(self.net)
+                sR=self.evalfunc(self.net)
                 #print("  %s" % log.last())
                 self.solutions[idx]=((sW,sS),sR)                
+                self.minFitness=min(self.minFitness,sR)
+                self.maxFitness=max(self.minFitness,sR)
             self.loadSnapshot(save)
             # re-sort solutions by descending fitness of new evaluation regime
             self.solutions=sorted(self.solutions,key=lambda s:s[1],reverse=True)
@@ -726,9 +790,11 @@ class OOPS:
             ((pW,pC),pR)=past
             self.loadWeights(pW)
             self.loadState(TS_now)
-            rk=self.evaluator(self.net)
+            rk=self.evaluator(self.net,
+                              original=searchTerm['w'],
+                              current=pW,
+                              originalFitness=searchTerm['r'])
             if rk>searchTerm['r']:
-                self.updateAffect(pW,searchTerm['w'],rk-searchTerm['r'])
                 searchTerm['w']=[]+pW
                 searchTerm['s']=TS_now
                 searchTerm['r']=rk
@@ -776,13 +842,15 @@ class OOPS:
                 else:
                     # mutate "bad" weights
                     mutant[idx]=mutant[idx]+p*(1.0-self.weightAffect[idx])
-                alternate=oscillateAlternate-alternate
+            alternate=oscillateAlternate-alternate
             # test at TS_now
             self.loadWeights(mutant)
             self.loadState(TS_now)
-            rk=self.evaluator(self.net)
+            rk=self.evaluator(self.net,
+                              original=searchTerm['w'],
+                              current=mutant,
+                              originalFitness=searchTerm['r'])
             if rk>searchTerm['r']:
-                self.updateAffect(mutant,searchTerm['w'],rk-searchTerm['r'])
                 searchTerm['w']=[]+mutant
                 searchTerm['s']=TS_now
                 searchTerm['r']=rk
@@ -790,9 +858,11 @@ class OOPS:
             # test at all previous solution eras
             for ((pW,era),pR) in self.solutions:
                 self.loadState(era)
-                rk=self.evaluator(self.net)
+                rk=self.evaluator(self.net,
+                                  original=searchTerm['w'],
+                                  current=mutant,
+                                  originalFitness=searchTerm['r'])
                 if rk>searchTerm['r']:
-                    self.updateAffect(mutant,searchTerm['w'],rk-searchTerm['r'])
                     searchTerm['w']=[]+mutant
                     searchTerm['s']=[]+era
                     searchTerm['r']=rk
@@ -890,121 +960,126 @@ class OOPS:
 
 
 if __name__ == "__main__":
-    
-    from pprint import PrettyPrinter    
-    fmt=PrettyPrinter(indent=2,width=40)
-    
-    net=Topology()
-    inputs={}
-    outputs={}
-    node_labels="A,B,C,D"
 
-    connections=[
-        "AB","AC","AD",
-        "BA","BC","BD",
-        "CA","CB","CD",
-        "DA","DB","DC"
-        ]
+    try:
 
-    input_connections=[
-        "0A"
-        ]
+        from pprint import PrettyPrinter    
+        fmt=PrettyPrinter(indent=2,width=40)
 
-    output_connections=[
-        "D0"
-        ]
-    
-    nodes   = { idx      : LSTM_Node() for idx in node_labels}
-    nodenames={ nodes[k] : k           for k   in nodes }
+        net=Topology()
+        inputs={}
+        outputs={}
+        node_labels="A,B,C,D"
 
-    for nm in nodes:
-        n=nodes[nm]
-        net.Connect((n,'peephole'),(n,'inputGate'))
-        net.Connect((n,'peephole'),(n,'forgetGate'))
-        net.Connect((n,'peephole'),(n,'outputGate'))
+        connections=[
+            "AB","AC","AD",
+            "BA","BC","BD",
+            "CA","CB","CD",
+            "DA","DB","DC"
+            ]
 
-    for c in connections:
-        net.Connect((nodes[c[0]],"output"),(nodes[c[1]],"input"))
-        net.Connect((nodes[c[0]],"output"),(nodes[c[1]],"inputGate"))
-        net.Connect((nodes[c[0]],"output"),(nodes[c[1]],"forgetGate"))
-        net.Connect((nodes[c[0]],"output"),(nodes[c[1]],"outputGate"))
+        input_connections=[
+            "0A"
+            ]
+
+        output_connections=[
+            "D0"
+            ]
         
-    for c in input_connections:
-        idx=int(c[0])
-        inputs[idx]=net.Connect(None,(nodes[c[1]],"input"))
+        nodes   = { idx      : LSTM_Node() for idx in node_labels}
+        nodenames={ nodes[k] : k           for k   in nodes }
+
+        for nm in nodes:
+            n=nodes[nm]
+            net.Connect((n,'peephole'),(n,'inputGate'))
+            net.Connect((n,'peephole'),(n,'forgetGate'))
+            net.Connect((n,'peephole'),(n,'outputGate'))
+
+        for c in connections:
+            net.Connect((nodes[c[0]],"output"),(nodes[c[1]],"input"))
+            net.Connect((nodes[c[0]],"output"),(nodes[c[1]],"inputGate"))
+            net.Connect((nodes[c[0]],"output"),(nodes[c[1]],"forgetGate"))
+            net.Connect((nodes[c[0]],"output"),(nodes[c[1]],"outputGate"))
+            
+        for c in input_connections:
+            idx=int(c[0])
+            inputs[idx]=net.Connect(None,(nodes[c[1]],"input"))
+            
+        for c in output_connections:
+            idx=int(c[1])
+            outputs[idx]=net.Connect((nodes[c[0]],"output"),None)
+
+        """
+        print("Inputs:")
+        fmt.pprint(inputs)
+        print("Outputs:")
+        fmt.pprint(outputs)
+        print("Nodes:")
+        fmt.pprint(nodes)
+        fmt.pprint(nodenames)
+        print("Connections:")
+        for c in net.connections.keys():
+            n1,c1=c[0]
+            n2,c2=c[1]
+            w=net.connections[c]
+            if n1 in nodenames.keys():
+                n1="Node "+nodenames[n1]
+            if n2 in nodenames.keys():
+                n2="Node "+nodenames[n2]
+            if c1==Input:
+                c1="*"
+            if c2==Output:
+                c2="*"
+            lhs="%s:%s" % (n1,c1)
+            rhs="%s:%s" % (n2,c2)
+            print("%s --> %s W=%s" % (lhs.rjust(15),rhs.ljust(15),w))
+        """
+
+        def Tester(theNet,test=""):
+            global testlog
+            # learn test string
+            # the outputs scaled to range 0..255 and rounded to get ASCII
+            eTerms=0.0
+            inputs[0].write(0) # no input used for this test
+            result=""
+            for c in test:
+                theNet.Activate()
+                # compare output to expect and calculate error squares
+                o1=ord(c)
+                o2=round(outputs[0].read()*255)
+                # noramlize the ord to a fraction so that unrounded
+                # output may be used for error calculation
+                of1=float(o1)
+                of2=outputs[0].read()*255.0
+                eTerms+=(of2-of1)*(of2-of1)
+                result=result+chr(o2)
+            eDist=math.sqrt(float(eTerms))
+            fitness=-eDist
+            log.log("'%s':'%s', fitness=%s" % (test,result,fitness))
+            # negate so higher error = lower fitness
+            return fitness
         
-    for c in output_connections:
-        idx=int(c[1])
-        outputs[idx]=net.Connect((nodes[c[0]],"output"),None)
+        Trainer=OOPS(Topology=net,Evaluator=Tester)
 
-    """
-    print("Inputs:")
-    fmt.pprint(inputs)
-    print("Outputs:")
-    fmt.pprint(outputs)
-    print("Nodes:")
-    fmt.pprint(nodes)
-    fmt.pprint(nodenames)
-    print("Connections:")
-    for c in net.connections.keys():
-        n1,c1=c[0]
-        n2,c2=c[1]
-        w=net.connections[c]
-        if n1 in nodenames.keys():
-            n1="Node "+nodenames[n1]
-        if n2 in nodenames.keys():
-            n2="Node "+nodenames[n2]
-        if c1==Input:
-            c1="*"
-        if c2==Output:
-            c2="*"
-        lhs="%s:%s" % (n1,c1)
-        rhs="%s:%s" % (n2,c2)
-        print("%s --> %s W=%s" % (lhs.rjust(15),rhs.ljust(15),w))
-    """
+        test="Hello, World!"
 
-    def Tester(theNet,test=""):
-        global testlog
-        # learn test string
-        # the outputs scaled to range 0..255 and rounded to get ASCII
-        eTerms=0.0
-        inputs[0].write(0) # no input used for this test
-        result=""
-        for c in test:
-            theNet.Activate()
-            # compare output to expect and calculate error squares
-            o1=ord(c)
-            o2=round(outputs[0].read()*255)
-            # noramlize the ord to a fraction so that unrounded
-            # output may be used for error calculation
-            of1=float(o1)
-            of2=outputs[0].read()*255.0
-            eTerms+=(of2-of1)*(of2-of1)
-            result=result+chr(o2)
-        eDist=math.sqrt(float(eTerms))
-        fitness=-eDist
-        log.log("'%s':'%s', fitness=%s" % (test,result,fitness))
-        # negate so higher error = lower fitness
-        return fitness
+        #prefixes=[]
+        epoch=1
+        print("Goal sequence: %s" % test)
+        for pfx in range(len(test)):
+        #for pfx in [len(test)-1]:
+            subTest=partial(Tester,test=test[0:pfx+1])
+            Trainer.changeEvaluator(subTest)
+            while round(Trainer.solutions[0][1])<0:
+                Trainer.TrainingEpoch()
+                lastSolve=log.last('solveLog')
+                if lastSolve is not None:
+                    gotcha=["+","-"][round(Trainer.solutions[0][1])<0]
+                    print("Epoch %s %s %s (%s solutions)" % (str(epoch).rjust(12,'0'),
+                          gotcha,lastSolve,len(Trainer.solutions)))
+                epoch+=1
+            #prefixes.append(Trainer.solutions[0])
+            #Trainer.solutions=[]+prefixes
 
-    Trainer=OOPS(Topology=net,Evaluator=Tester)
-
-    test="Hello, World!"
-
-    #prefixes=[]
-    epoch=1
-    print("Goal sequence: %s" % test)
-    for pfx in range(len(test)):
-    #for pfx in [len(test)-1]:
-        subTest=partial(Tester,test=test[0:pfx+1])
-        Trainer.changeEvaluator(subTest)
-        while round(Trainer.solutions[0][1])<0:
-            Trainer.TrainingEpoch()
-            lastSolve=log.last('solveLog')
-            if lastSolve is not None:
-                gotcha=["+","-"][round(Trainer.solutions[0][1])<0]
-                print("Epoch %s %s %s (%s solutions)" % (str(epoch).rjust(12,'0'),
-                      gotcha,lastSolve,len(Trainer.solutions)))
-            epoch+=1
-        #prefixes.append(Trainer.solutions[0])
-        #Trainer.solutions=[]+prefixes
+    finally:
+        pygame.quit()
