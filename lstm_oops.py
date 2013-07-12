@@ -813,6 +813,7 @@ class OOPS:
     def TrainingEpoch(self):
         sol=self.solutions[0]
         self.loadSnapshot(self.solutions[0][0])
+        self.loadWeights(self.solutions[0][0][0])
         TS_now=self.saveState()
         curTerm={'w':self.saveWeights(),'s':TS_now,'r':self.rank}
         searchTerm={'w':self.saveWeights(),'s':TS_now,'r':self.rank}
@@ -843,12 +844,14 @@ class OOPS:
             self.mutationOps[0](mutant)
             egg=[]+mutant
             # mutate mutant
+            """
             for mutations in range(mutationCount):
                 # apply randomly chosen mutation operator (other than splice)
                 op=round(EntropySource.uniform(1,len(self.mutationOps)-1))
                 self.mutationOps[op](mutant)
+            """
             for idx in range(len(mutant)):
-                new=EntropySource.uniform(-6,6)
+                new=EntropySource.uniform(-2,2)
                 org=mutant[idx]
                 aff=self.weightAffect[idx]**2.0
                 if (alternate==0):
@@ -859,6 +862,7 @@ class OOPS:
                     # mutate "bad" weights
                     # aff=1.0 is org, aff=0.0 is new
                     mutant[idx]=org*aff+new*(1.0-aff)
+            """
             scribe=[]+egg
             for idx in range(len(mutant)):
                 scribe[idx]=mutant[idx]
@@ -878,6 +882,7 @@ class OOPS:
                                     self.solutions[0:self.maxSolutions-1]
                     self.rank=rk
                     self.currentSolves+=1
+            """
             alternate=oscillateAlternate-alternate
             # test at TS_now
             self.loadWeights(mutant)
@@ -991,12 +996,13 @@ if __name__ == "__main__":
         net=Topology()
         inputs={}
         outputs={}
-        node_labels="A,B,C"
+        node_labels="A,B,C,D"
 
         connections=[
-                "AA","AB","AC",
-                "BA","BB","BC",
-                "CA","CB","CC"
+                "AA","AB","AC","AD",
+                "BA","BB","BC","BD",
+                "CA","CB","CC","CD",
+                "DA","DB","DC","DD"
             ]
 
         input_connections=[
@@ -1004,7 +1010,7 @@ if __name__ == "__main__":
             ]
 
         output_connections=[
-            "C0"
+            "D0"
             ]
         
         nodes   = { idx      : LSTM_Node() for idx in node_labels}
