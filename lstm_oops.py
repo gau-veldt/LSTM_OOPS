@@ -668,45 +668,30 @@ class OOPS:
 
     def resetAffect(self):
         self.weightAffect=[1.0]*len(self.net.connections)
-        self.affectOffset=0.0
-        self.affectScale=0.0
+        self.affectInit=True
 
     def updateAffect(self,priorWts,currentWts,netFitness):
         """
         Updates weight affects then renormalizes to [0,1]
         where 0 is worst affect, 1 is best
         """
+        self.affectInit=False
         if len(priorWts)-len(currentWts)+len(self.weightAffect)-len(priorWts)!=0:
-               raise TypeErorr("updateActivity: Incompatible weightspaces (sizes differ).")
-        top=float("-Inf")
-        btm=float("Inf")
-        scale=self.affectScale
-        offset=self.affectOffset
+            raise TypeErorr("updateActivity: Incompatible weightspaces (sizes differ).")
+        topChg=float("-Inf")
+        btmChg=float("Inf")
         for idx in range(len(priorWts)):
-               magnitude=math.fabs(currentWts[idx]-priorWts[idx])
-               change=magnitude*netFitness
-               # convert normalized back to unnormalized
-               affect=offset+self.weightAffect[idx]*scale
-               # add unnormalized change to affect
-               affect+=change
-               self.weightAffect[idx]=affect
-               top=max(top,affect)
-               btm=min(btm,affect)
-        # renormalize affects to [0,1]
-        if top==btm:
-            # real inprobable corner case
-            # that will cause dividum byzeroum bug
-            # if all changes makes all affects equal
-            # (in practice this should *never* happen)
-            # Solution is easy: reset to 1.0
-            self.resetWeightAffect()
-        else:
-            self.affectScale=top-btm
-            self.affectOffset=btm
-            for idx in range(len(priorWts)):
-                a=self.weightAffect[idx]
-                a=(a-btm)/(top-btm)
-                self.weightAffect[idx]=a
+            magnitude=math.fabs(currentWts[idx]-priorWts[idx])
+            change=magnitude*netFitness
+            topChg=max(topChg,change)
+            btmChg=min(topChg,change)
+        offset=btmChg
+        scale=topChg-btmChg
+        for idx in range(len(priorWts)):
+            magnitude=math.fabs(currentWts[idx]-priorWts[idx])
+            change=((magnitude*netFitness)-offset)/scale
+            affect=(self.weightAffect[idx]+change)/2.0
+            self.weightAffect[idx]=affect
 
     def changeEvaluator(self,testFunc):
         self.evaluator=testFunc
@@ -755,18 +740,12 @@ class OOPS:
         for i in range(sLen):
             mutantCount+=round(EntropySource.uniform(1,mLen))
         mutantCount=1000
-        # pick random first parents
-        mutants=[
-            []+self.solutions[
-                round((len(self.solutions)-1)*(1.0-math.cos(EntropySource.uniform(0.0,halfPi))))
-                ][0][0]
-            for mut in range(mutantCount)]
         # maximum random mutation operators per gene
         #mCount=len(self.solutions)+len(self.net.connections)
         alternate=0
         # will cylce good/bad affects
         oscillateAlternate=1
-        if (self.affectScale==0.0):
+        if self.affectInit:
             # if affect is in a reset state
             # we don't want to oscillate
             # since it means 50% of mutants
@@ -774,7 +753,11 @@ class OOPS:
             # pass and thus wasted
             oscillateAlternate=0
         mCount=len(self.net.connections)+len(self.net.nodeRefs)
-        for mutant in mutants:
+        for mutant in range(mutantCount):
+            # pick a random first parent
+            mutant=[]+self.solutions[
+                round((len(self.solutions)-1)*(1.0-math.cos(EntropySource.uniform(0.0,halfPi))))
+                ][0][0]
             mutationCount=round(EntropySource.uniform(1,mCount))
             # splice (mating to second random parent)
             self.mutationOps[0](mutant)
