@@ -27,7 +27,7 @@
 """
 import pygame,os
 pygame.init()
-size=(1560,320)
+size=(640,320)
 visual=pygame.display.set_mode(size,pygame.DOUBLEBUF)
 elapsed=0
 since=pygame.time.get_ticks()
@@ -704,28 +704,32 @@ class OOPS:
             cur=kwargs['current']
             oldRk=kwargs['originalFitness']
             self.updateAffect(org,cur,newRk-oldRk)
-            for x in range(weightCount):
-                bar=100*self.weightAffect[x]
-                xbar=100-bar
-                pygame.draw.line(visual,(0,0,0),(16+x*6,10),(16+x*6,10+xbar),5)
-                pygame.draw.line(visual,(0,255,255),(16+x*6,110),(16+x*6,110-bar),5)
-                prevBar=100*sigmoid(org[x])
-                xPrevBar=100-prevBar
-                curBar=100*sigmoid(cur[x])
-                xCurBar=100-curBar
-                pygame.draw.line(visual,(0,0,0),  (16+x*6,120),(16+x*6,120+xPrevBar),2)
-                pygame.draw.line(visual,(255,0,255),(16+x*6,220),(16+x*6,220-prevBar),2)
-                pygame.draw.line(visual,(0,0,0),  (19+x*6,120),(19+x*6,120+xCurBar),2)
-                pygame.draw.line(visual,(128,0,255),(19+x*6,220),(19+x*6,220-curBar),2)
+            
+            if elapsed>framerate:
+                
+                while elapsed>framerate:
+                    elapsed-=framerate
 
-            nameImg=font.render(self.testId,True,(160,160,224))
-            pygame.draw.rect(visual,(0,0,0),textregion)
-            visual.blit(nameImg,(16,234))
+                for x in range(weightCount):
+                    bar=100*self.weightAffect[x]
+                    xbar=100-bar
+                    pygame.draw.line(visual,(0,0,0),(16+x*6,10),(16+x*6,10+xbar),5)
+                    pygame.draw.line(visual,(0,255,255),(16+x*6,110),(16+x*6,110-bar),5)
+                    prevBar=100*sigmoid(org[x])
+                    xPrevBar=100-prevBar
+                    curBar=100*sigmoid(cur[x])
+                    xCurBar=100-curBar
+                    pygame.draw.line(visual,(0,0,0),  (16+x*6,120),(16+x*6,120+xPrevBar),2)
+                    pygame.draw.line(visual,(255,0,255),(16+x*6,220),(16+x*6,220-prevBar),2)
+                    pygame.draw.line(visual,(0,0,0),  (19+x*6,120),(19+x*6,120+xCurBar),2)
+                    pygame.draw.line(visual,(128,0,255),(19+x*6,220),(19+x*6,220-curBar),2)
 
-        if elapsed>framerate:
-          pygame.display.flip()
-          while elapsed>framerate:
-              elapsed-=framerate
+                nameImg=font.render(self.testId,True,(160,160,224))
+                pygame.draw.rect(visual,(0,0,0),textregion)
+                
+                visual.blit(nameImg,(16,234))
+
+            pygame.display.flip()
         
         return newRk
 
