@@ -917,10 +917,10 @@ if __name__ == "__main__":
     node_labels="A,B,C,D"
 
     connections=[
-        "AA","AB","AC","AD",
-        "BA","BB","BC","BD",
-        "CA","CB","CC","CD",
-        "DA","DB","DC","DD"
+        "AB","AC","AD",
+        "BA","BC","BD",
+        "CA","CB","CD",
+        "DA","DB","DC"
         ]
 
     input_connections=[
