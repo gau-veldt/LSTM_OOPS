@@ -86,6 +86,9 @@ def sigmoid(x):
     rc=1/(1+math.exp(-x))
     return rc
 
+def bin2gray(b):
+    return b[:1]+''.join([str(int(i) ^ int(ishift)) for i, ishift in zip(b[:-1],b[1:])])
+
 def searchCurve(a):
     if a<halfPi:
         return 1.0-math.sin(a)
@@ -856,6 +859,25 @@ class OOPS:
                     # mutate "bad" weights
                     # aff=1.0 is org, aff=0.0 is new
                     mutant[idx]=org*aff+new*(1.0-aff)
+            scribe=[]+egg
+            for idx in range(len(mutant)):
+                scribe[idx]=mutant[idx]
+                self.loadWeights(scribe)
+                scribe[idx]=egg[idx]
+                self.loadState(TS_now)
+                rk=self.evaluator(self.net,
+                                  original=searchTerm['w'],
+                                  current=scribe,
+                                  originalFitness=searchTerm['r'])
+                if rk>searchTerm['r']:
+                    searchTerm['w']=[]+mutant
+                    searchTerm['s']=TS_now
+                    searchTerm['r']=rk
+                    log.log(log.last(),which='solveLog')
+                    self.solutions=[((searchTerm['w'],searchTerm['s']),searchTerm['r'])]+\
+                                    self.solutions[0:self.maxSolutions-1]
+                    self.rank=rk
+                    self.currentSolves+=1
             alternate=oscillateAlternate-alternate
             # test at TS_now
             self.loadWeights(mutant)
@@ -969,13 +991,12 @@ if __name__ == "__main__":
         net=Topology()
         inputs={}
         outputs={}
-        node_labels="A,B,C,D"
+        node_labels="A,B,C"
 
         connections=[
-                "AA","AB","AC","AD",
-                "BA","BB","BC","BD",
-                "CA","CB","CC","CD",
-                "DA","DB","DC","DD"
+                "AA","AB","AC",
+                "BA","BB","BC",
+                "CA","CB","CC"
             ]
 
         input_connections=[
@@ -983,7 +1004,7 @@ if __name__ == "__main__":
             ]
 
         output_connections=[
-            "D0"
+            "C0"
             ]
         
         nodes   = { idx      : LSTM_Node() for idx in node_labels}
