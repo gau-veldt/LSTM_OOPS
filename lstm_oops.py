@@ -1011,8 +1011,8 @@ if __name__ == "__main__":
     #prefixes=[]
     epoch=1
     print("Goal sequence: %s" % test)
-    #for pfx in range(len(test)):
-    for pfx in [len(test)-1]:
+    for pfx in range(len(test)):
+    #for pfx in [len(test)-1]:
         subTest=partial(Tester,test=test[0:pfx+1])
         Trainer.changeEvaluator(subTest)
         while round(Trainer.solutions[0][1])<0:
