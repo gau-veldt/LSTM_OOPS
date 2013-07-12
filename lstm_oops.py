@@ -77,6 +77,12 @@ def sigmoid(x):
     rc=1/(1+math.exp(-x))
     return rc
 
+def searchCurve(a):
+    if a<halfPi:
+        return 1.0-math.sin(a)
+    else:
+        return -1.0-math.sin(a)
+
 class TopologyError(Exception):
     """ When something goes wrong in topology """
     def __init__(self,val):
@@ -647,7 +653,6 @@ class OOPS:
         TS_now=self.saveState()
         searchTerm={'w':self.saveWeights(),'s':TS_now,'r':self.rank}
         # try past solutions at current state
-        """
         for past in self.solutions:
             ((pW,pC),pR)=past
             self.loadWeights(pW)
@@ -658,7 +663,6 @@ class OOPS:
                 searchTerm['s']=TS_now
                 searchTerm['r']=rk
                 log.log(log.last(),which='solveLog')
-        """
         # create some mutations
         mutantCount=0
         sLen=len(self.solutions)
@@ -686,8 +690,8 @@ class OOPS:
                 self.mutationOps[op](mutant)
             """
             for idx in range(len(mutant)):
-                p=math.cos(EntropySource.uniform(0,math.pi))
-                mutant[idx]=mutant[idx]*2.0*p
+                p=searchCurve(EntropySource.uniform(0,math.pi))
+                mutant[idx]=mutant[idx]+2.0*p
         for mutant in mutants:
             # test at TS_now
             self.loadWeights(mutant)
@@ -699,7 +703,6 @@ class OOPS:
                 searchTerm['r']=rk
                 log.log(log.last(),which='solveLog')
             # test at all previous solution eras
-            """
             for ((pW,era),pR) in self.solutions:
                 self.loadState(era)
                 rk=self.evaluator(self.net)
@@ -708,7 +711,6 @@ class OOPS:
                     searchTerm['s']=[]+era
                     searchTerm['r']=rk
                     log.log(log.last(),which='solveLog')
-            """
         # if we found something better store the solution
         if searchTerm['r']>self.solutions[0][1]:
             self.solutions=[((searchTerm['w'],searchTerm['s']),searchTerm['r'])]+\
@@ -746,15 +748,16 @@ class OOPS:
         return chrom
     def mutateSplice(self,chrom):
         nSol=len(self.solutions)
-        if nSol==1:
-            # only works when more than one solution
-            return chrom
         which=1.0-math.cos(EntropySource.uniform(0.0,halfPi))
         which=round(which*float(nSol-1))
         ((other,sS),sR)=self.solutions[which]
-        for transcribe in range(len(chrom)):
-            if EntropySource.uniform(0.0,1.0)>=0.5:
-                chrom[transcribe]=other[transcribe]
+        picked=[False]*len(chrom)
+        for transcribe in range(int(len(chrom)/2)):
+            k=round(EntropySource.uniform(0,len(chrom)-1))
+            while picked[k]:
+                k=round(EntropySource.uniform(0,len(chrom)-1))
+            picked[k]=True
+            chrom[k]=other[k]
         return chrom
     def mutateSwap(self,chrom):
         a=round(EntropySource.uniform(0,len(chrom)-1))
