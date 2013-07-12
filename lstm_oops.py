@@ -27,7 +27,7 @@
 """
 import pygame,os
 pygame.init()
-size=(640,480)
+size=(1560,320)
 visual=pygame.display.set_mode(size,pygame.DOUBLEBUF)
 elapsed=0
 since=pygame.time.get_ticks()
@@ -810,11 +810,6 @@ class OOPS:
         curTerm={'w':self.saveWeights(),'s':TS_now,'r':self.rank}
         searchTerm={'w':self.saveWeights(),'s':TS_now,'r':self.rank}
         # create some mutations
-        mutantCount=0
-        sLen=len(self.solutions)
-        mLen=max(sLen,5)
-        for i in range(sLen):
-            mutantCount+=round(EntropySource.uniform(1,mLen))
         mutantCount=1000
         # maximum random mutation operators per gene
         #mCount=len(self.solutions)+len(self.net.connections)
@@ -835,20 +830,20 @@ class OOPS:
             mutant=[]+self.solutions[
                 round((len(self.solutions)-1)*(1.0-math.cos(EntropySource.uniform(0.0,halfPi))))
                 ][0][0]
+            #mutant=[]+self.solutions[0][0][0]
             mutationCount=round(EntropySource.uniform(1,mCount))
             # splice (mating to second random parent)
             self.mutationOps[0](mutant)
+            egg=[]+mutant
             # mutate mutant
-            """
             for mutations in range(mutationCount):
                 # apply randomly chosen mutation operator (other than splice)
                 op=round(EntropySource.uniform(1,len(self.mutationOps)-1))
                 self.mutationOps[op](mutant)
-            """
             for idx in range(len(mutant)):
                 new=EntropySource.uniform(-6,6)
                 org=mutant[idx]
-                aff=self.weightAffect[idx]
+                aff=self.weightAffect[idx]/100.0
                 if (alternate==0):
                     # mutate "good" weights
                     # aff=0.0 is org, aff=1.0 is new
@@ -970,13 +965,15 @@ if __name__ == "__main__":
         net=Topology()
         inputs={}
         outputs={}
-        node_labels="A,B,C,D"
+        node_labels="A,B,C,D,E,F"
 
         connections=[
-            "AB","AC","AD",
-            "BA","BC","BD",
-            "CA","CB","CD",
-            "DA","DB","DC"
+                "AB","AC","AD","AE","AF",
+                "BA","BC","BD","BE","BF",
+                "CA","CB","CD","CE","CF",
+                "DA","DB","DC","DE","DF",
+                "EA","EB","EC","ED","EF",
+                "FA","FB","FC","FD","FE"
             ]
 
         input_connections=[
@@ -984,7 +981,7 @@ if __name__ == "__main__":
             ]
 
         output_connections=[
-            "D0"
+            "E0"
             ]
         
         nodes   = { idx      : LSTM_Node() for idx in node_labels}
