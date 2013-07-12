@@ -32,6 +32,8 @@ visual=pygame.display.set_mode(size,pygame.DOUBLEBUF)
 elapsed=0
 since=pygame.time.get_ticks()
 framerate=1000.0/60.0
+font=pygame.font.SysFont("courier",18)
+textregion=pygame.Rect(0,230,640,30)
 
 import math
 import random
@@ -501,6 +503,11 @@ class OOPS:
     essentially, the timestamp the solution was found.
     I will call it as such.
 
+    NB: My search algorith is sterile right now it doesn't
+        actually move in time between searches effectively.
+        Might be faster to have less cross passes and rely more on the
+        affector.
+
     I do four different search operations in an epoch:
     
         1. evaluate all previous soltuions at current timestamp
@@ -672,9 +679,11 @@ class OOPS:
         some data about where in the weightspace to do mutations
         """
         self.resetAffect()
+        
+        self.currentSolves=0
 
     def evaluator(self,net,**kwargs):
-        global visual,elapsed,since,framerate
+        global visual,elapsed,since,framerate,font,textregion
         
         for evt in pygame.event.get():
             if evt.type == pygame.QUIT:
@@ -708,6 +717,10 @@ class OOPS:
                 pygame.draw.line(visual,(255,0,255),(16+x*6,220),(16+x*6,220-prevBar),2)
                 pygame.draw.line(visual,(0,0,0),  (19+x*6,120),(19+x*6,120+xCurBar),2)
                 pygame.draw.line(visual,(128,0,255),(19+x*6,220),(19+x*6,220-curBar),2)
+
+            nameImg=font.render(self.testId,True,(160,160,224))
+            pygame.draw.rect(visual,(0,0,0),textregion)
+            visual.blit(nameImg,(16,234))
 
         if elapsed>framerate:
           pygame.display.flip()
@@ -791,22 +804,11 @@ class OOPS:
             self.solutions=sorted(self.solutions,key=lambda s:s[1],reverse=True)
 
     def TrainingEpoch(self):
+        sol=self.solutions[0]
+        self.loadSnapshot(self.solutions[0][0])
         TS_now=self.saveState()
+        curTerm={'w':self.saveWeights(),'s':TS_now,'r':self.rank}
         searchTerm={'w':self.saveWeights(),'s':TS_now,'r':self.rank}
-        # try past solutions at current state
-        for past in self.solutions:
-            ((pW,pC),pR)=past
-            self.loadWeights(pW)
-            self.loadState(TS_now)
-            rk=self.evaluator(self.net,
-                              original=searchTerm['w'],
-                              current=pW,
-                              originalFitness=searchTerm['r'])
-            if rk>searchTerm['r']:
-                searchTerm['w']=[]+pW
-                searchTerm['s']=TS_now
-                searchTerm['r']=rk
-                log.log(log.last(),which='solveLog')
         # create some mutations
         mutantCount=0
         sLen=len(self.solutions)
@@ -827,7 +829,8 @@ class OOPS:
             # pass and thus wasted
             oscillateAlternate=0
         mCount=len(self.net.connections)+len(self.net.nodeRefs)
-        for mutant in range(mutantCount):
+        for mutantId in range(mutantCount):
+            self.testId="Mutant_%s" % (str(1000-mutantId).rjust(4,"0"))
             # pick a random first parent
             mutant=[]+self.solutions[
                 round((len(self.solutions)-1)*(1.0-math.cos(EntropySource.uniform(0.0,halfPi))))
@@ -867,29 +870,15 @@ class OOPS:
                 searchTerm['s']=TS_now
                 searchTerm['r']=rk
                 log.log(log.last(),which='solveLog')
-            # test at all previous solution eras
-            for ((pW,era),pR) in self.solutions:
-                self.loadState(era)
-                rk=self.evaluator(self.net,
-                                  original=searchTerm['w'],
-                                  current=mutant,
-                                  originalFitness=searchTerm['r'])
-                if rk>searchTerm['r']:
-                    searchTerm['w']=[]+mutant
-                    searchTerm['s']=[]+era
-                    searchTerm['r']=rk
-                    log.log(log.last(),which='solveLog')
-        # if we found something better store the solution
-        if searchTerm['r']>self.solutions[0][1]:
-            self.solutions=[((searchTerm['w'],searchTerm['s']),searchTerm['r'])]+\
-                           self.solutions[0:self.maxSolutions-1]
+                self.solutions=[((searchTerm['w'],searchTerm['s']),searchTerm['r'])]+\
+                                self.solutions[0:self.maxSolutions-1]
+                self.rank=rk
+                self.currentSolves+=1
+        # if we found anything better store the best solution
+        if searchTerm['r']>curTerm['r']:
             self.loadWeights(searchTerm['w'])
             self.loadState(searchTerm['s'])
             self.rank=searchTerm['r']
-        else:
-            log.logs['solveLog']=[]
-            self.loadState(TS_now)
-        self.net.Activate()
 
     def mutateTumor(self,chrom):
         # similar to Radical but affects a
@@ -945,7 +934,7 @@ class OOPS:
         return chrom
             
     def saveWeights(self):
-        return [self.net.connections[edge] for edge in sorted(self.net.connections)]
+        return []+[self.net.connections[edge] for edge in sorted(self.net.connections)]
     def saveState(self):
         nodes=self.net.nodeRefs
         return [n.CEC for n in nodes]+[n.states['output'] for n in nodes]
@@ -1083,9 +1072,11 @@ if __name__ == "__main__":
             subTest=partial(Tester,test=test[0:pfx+1])
             Trainer.changeEvaluator(subTest)
             while round(Trainer.solutions[0][1])<0:
+                solves=Trainer.currentSolves
                 Trainer.TrainingEpoch()
+                newSolves=Trainer.currentSolves-solves
                 lastSolve=log.last('solveLog')
-                if lastSolve is not None:
+                if newSolves>0:
                     gotcha=["+","-"][round(Trainer.solutions[0][1])<0]
                     print("Epoch %s %s %s (%s solutions)" % (str(epoch).rjust(12,'0'),
                           gotcha,lastSolve,len(Trainer.solutions)))
