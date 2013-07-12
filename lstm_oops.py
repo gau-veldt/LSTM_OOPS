@@ -1020,7 +1020,7 @@ if __name__ == "__main__":
             lastSolve=log.last('solveLog')
             if lastSolve is not None:
                 gotcha=["+","-"][round(Trainer.solutions[0][1])<0]
-                print("Epoch %s %s %s (%s solutions)" % (str(epoch).rjust(10,'0'),
+                print("Epoch %s %s %s (%s solutions)" % (str(epoch).rjust(12,'0'),
                       gotcha,lastSolve,len(Trainer.solutions)))
             epoch+=1
         #prefixes.append(Trainer.solutions[0])
