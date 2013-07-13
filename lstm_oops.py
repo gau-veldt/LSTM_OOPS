@@ -177,6 +177,41 @@ class Topology:
         """
         self.SquishOutput=enable
 
+    def makeOrdered(self):
+        ordered=[]
+        visited={C:False for C in self.connections}
+        # dry run activation pass (no states are harmed)
+        # to yield connections in order they
+        # will be accessed but we want
+        # the first connection access to
+        # be at the end of the list
+        for n in self.nodeRefs:
+            # the nodes we want are all the ones connected
+            # to any input channels (we rely on the node
+            # object to order this list so the non-depending
+            # inputs come first).  for instance an LSTM node
+            # lists outputgate after forgetgate since outputgate
+            # may source the peephole which depends on forgetgate
+            # (this is a special dependency specific to the LSTM
+            # node's implementation of peepholes to allow output
+            # gates to react to a *change* in CEC state)
+            for ch in n.availableConnectionPoints(InputOnly=True):
+                sources=self.getSources(n,ch)
+                for s in sources:
+                    if not visited[s]:
+                        ordered=[s]+ordered
+                        visited[s]=True
+        for n in self.outRefs:
+            # now the output edges
+            sources=self.getSources(n,Output)
+            for s in sources:
+                if not visited[s]:
+                    ordered=[s]+ordered
+                    visited[s]=True        
+        self.ordered=ordered
+            
+        
+
     def Connect(self,source,sink):
         """
         Connects specified connection points
@@ -270,13 +305,18 @@ class Topology:
         for orig in origPoints:
             for dest in destPoints:
                 # store connection
-                self.connections[(orig,dest)]=1.0
+                C=(orig,dest)
+                self.connections[C]=1.0
                 # memoize nodes involved with connection
                 # to improve performance of Activate()
                 if orig[1]!=Input:
                     self.nodeRefs[orig[0]]=True
                 if dest[1]!=Output:
                     self.nodeRefs[dest[0]]=True
+
+        # indicate network is unsorted
+        self.ordered=None
+        
         # returns the input or output terminal if one was created
         # otherwise None
         return newbie
@@ -296,13 +336,21 @@ class Topology:
         Gets list of all weighted values feeding to the specified sink
         """
         found=[]
-        sep=''
         for (src,srcChan),(dest,destChan) in self.connections:
             if dest==sink and destChan==channel:
                 w=self.connections[((src,srcChan),(dest,destChan))]
                 value=w*src.read(channel=srcChan)
                 found.append(value)
-                sep=','
+        return found
+
+    def getSources(self,sink,channel):
+        """
+        Gets list of all connections feeding specified sink
+        """
+        found=[]
+        for (src,srcChan),(dest,destChan) in self.connections:
+            if dest==sink and destChan==channel:
+                found.append(((src,srcChan),(dest,destChan)))
         return found
 
     def Activate(self):
@@ -315,6 +363,8 @@ class Topology:
         levels are sampled (ie: the Output nodes written with
         values) after all nodes activate.            
         """
+        if self.ordered is None:
+            self.makeOrdered()
         # activate each node
         for n in self.nodeRefs:
             n.Activate(self)
@@ -356,8 +406,8 @@ class LSTM_Node:
         output activation function
         
     """
-    iConns=["input","inputGate","outputGate","forgetGate"]
-    oConns=["output","peephole"]
+    iConns=["input","inputGate","forgetGate","outputGate"]
+    oConns=["peephole","output"]
     connMap={
             k:v for (k,v) in \
             [(x,0) for x in iConns] + \
@@ -716,8 +766,8 @@ class OOPS:
                 for x in range(weightCount):
                     bar=100*self.weightAffect[x]
                     xbar=100-bar
-                    pygame.draw.line(visual,(0,0,0),(16+x*6,10),(16+x*6,10+xbar),5)
-                    pygame.draw.line(visual,(0,255,255),(16+x*6,110),(16+x*6,110-bar),5)
+                    pygame.draw.line(visual,(255,0,0),(16+x*6,10),(16+x*6,10+xbar),5)
+                    pygame.draw.line(visual,(0,255,0),(16+x*6,110),(16+x*6,110-bar),5)
                     prevBar=100*sigmoid(org[x])
                     xPrevBar=100-prevBar
                     curBar=100*sigmoid(cur[x])
@@ -811,6 +861,42 @@ class OOPS:
             self.solutions=sorted(self.solutions,key=lambda s:s[1],reverse=True)
 
     def TrainingEpoch(self):
+        """
+        Alternate search based trainer
+
+        Algorithm
+
+        It's like a binary search...
+        
+        weightsearh(minT,skip=6)
+        minT is a "minimum threshold"
+        and tells us where to bottom out on the search
+        when search skip falls below minT (it is
+        halved at every step)
+        At one weight:
+            -we start with a scanning factor 'skip'
+             should be a mutliple of [-6,6]
+             such that exists integer x st: -6+x*skip==6
+            -now we evaulate the network (state is reset)
+             for i on interval [0,x] where weight=skip*i
+             we build a list of resulting fitness deltas
+            -next step is to find fitness peaks
+             a peak is define as on area of high fitness
+             bounded by low fitness. to make this accurate
+             we need to normalize each element by the total
+             fitness change (affect) across the entire search
+             interval for now I'll use the margin as .5 so a peak is
+             a point of >=.5 bounded by two lower fitnesses.
+            -if no fitness changes occur (!!!) move on to next
+             weight.  this should be rare.  just short circuit
+             to next weight (if an upstream output gate is 0
+             this could happen on a downstream input weight)
+            -keep the peaks
+            -now we iterate to remaining weights for each peak
+             in the previous
+        """
+
+    def TrainingEvolutionary(self):
         sol=self.solutions[0]
         self.loadSnapshot(self.solutions[0][0])
         self.loadWeights(self.solutions[0][0][0])
