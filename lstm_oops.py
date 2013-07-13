@@ -928,7 +928,7 @@ class OOPS:
 
     def TrainingEpoch(self):
         sol=self.solutions[0]
-        self.loadSnapshot(self.solutions[0][0])
+        #self.loadSnapshot(self.solutions[0][0])
         self.loadWeights(self.solutions[0][0][0])
         TS_now=self.saveState()
         curTerm={'w':self.saveWeights(),'s':TS_now,'r':self.rank}
@@ -936,7 +936,7 @@ class OOPS:
         # create some mutations
         mutantCount=1000
         # maximum random mutation operators per gene
-        #mCount=len(self.solutions)+len(self.net.connections)
+        mCount=len(self.solutions)+len(self.net.connections)
         alternate=0
         # will cylce good/bad affects
         oscillateAlternate=1
@@ -947,7 +947,6 @@ class OOPS:
             # won't be modified at all on first
             # pass and thus wasted
             oscillateAlternate=0
-        mCount=len(self.net.connections)+len(self.net.nodeRefs)
         for mutantId in range(mutantCount):
             self.testId="Mutant_%s" % (str(1000-mutantId).rjust(4,"0"))
             # pick a random first parent
@@ -1002,7 +1001,7 @@ class OOPS:
             alternate=oscillateAlternate-alternate
             # test at TS_now
             self.loadWeights(mutant)
-            self.loadState(TS_now)
+            #self.loadState(TS_now)
             rk=self.evaluator(self.net,
                               original=searchTerm['w'],
                               current=mutant,
@@ -1019,7 +1018,7 @@ class OOPS:
         # if we found anything better store the best solution
         if searchTerm['r']>curTerm['r']:
             self.loadWeights(searchTerm['w'])
-            self.loadState(searchTerm['s'])
+            #self.loadState(searchTerm['s'])
             self.rank=searchTerm['r']
 
     def mutateTumor(self,chrom):
@@ -1122,7 +1121,10 @@ if __name__ == "__main__":
             ]
 
         input_connections=[
-            "0A"
+            "0A","0B","0C","0D",
+            "1A","1B","1C","1D",
+            "2A","2B","2C","2D",
+            "00","10","20"
             ]
 
         output_connections=[
@@ -1143,14 +1145,22 @@ if __name__ == "__main__":
             net.Connect((nodes[c[0]],"output"),(nodes[c[1]],"inputGate"))
             net.Connect((nodes[c[0]],"output"),(nodes[c[1]],"forgetGate"))
             net.Connect((nodes[c[0]],"output"),(nodes[c[1]],"outputGate"))
-            
-        for c in input_connections:
-            idx=int(c[0])
-            inputs[idx]=net.Connect(None,(nodes[c[1]],"input"))
-            
+
         for c in output_connections:
             idx=int(c[1])
             outputs[idx]=net.Connect((nodes[c[0]],"output"),None)
+            
+        for c in input_connections:
+            idx=int(c[0])
+            dst=c[1]
+            if dst in ['0','1','2','3','4','5','6','7','8','9']:
+                net.Connect((inputs[idx],Input),(outputs[int(dst)],Output))
+            else:
+                if idx in inputs:
+                    net.Connect((inputs[idx],Input),(nodes[dst],"input"))
+                else:
+                    inputs[idx]=net.Connect(None,(nodes[dst],"input"))
+            
 
         """
         print("Inputs:")
@@ -1184,15 +1194,22 @@ if __name__ == "__main__":
             # the outputs scaled to range 0..255 and rounded to get ASCII
             eTerms=0.0
             inputs[0].write(0) # no input used for this test
+            prevTgt=0.0
+            prevOut=0.0
             result=""
             for c in test:
+                # second input is previous character
+                inputs[1].write(prevOut/255.0)
+                inputs[2].write(prevTgt/255.0)
                 theNet.Activate()
                 # compare output to expect and calculate error squares
                 o1=ord(c)
-                o2=round(outputs[0].read()*255)
+                o2=round(outputs[0].read()*255.0)
+                prevOut=outputs[0].read()
                 # noramlize the ord to a fraction so that unrounded
                 # output may be used for error calculation
                 of1=float(o1)
+                prevTgt=of1/255.0
                 of2=outputs[0].read()*255.0
                 eTerms+=(of2-of1)*(of2-of1)
                 result=result+chr(o2)
@@ -1209,8 +1226,8 @@ if __name__ == "__main__":
         #prefixes=[]
         epoch=1
         print("Goal sequence: %s" % test)
-        #for pfx in range(len(test)):
-        for pfx in [len(test)-1]:
+        for pfx in range(len(test)):
+        #for pfx in [len(test)-1]:
             subTest=partial(Tester,test=test[0:pfx+1])
             Trainer.changeEvaluator(subTest)
             while round(Trainer.solutions[0][1])<0:
