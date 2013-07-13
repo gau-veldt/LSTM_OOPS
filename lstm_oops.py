@@ -86,6 +86,14 @@ def sigmoid(x):
     rc=1/(1+math.exp(-x))
     return rc
 
+def dtSigmoid(x):
+    """
+    rate of change of sigmoid at x
+    (derivative)
+    """
+    sx=sigmoid(x)
+    return sx*(1-sx)
+
 def bin2gray(b):
     return b[:1]+''.join([str(int(i) ^ int(ishift)) for i, ishift in zip(b[:-1],b[1:])])
 
@@ -752,6 +760,9 @@ class OOPS:
         self.minFitness=min(self.minFitness,newRk)
         self.maxFitness=max(self.maxFitness,newRk)
         
+        bgColor=(0,0,128)
+        divColor=(0,0,0)
+        
         if 'original' in kwargs and 'current' in kwargs and 'originalFitness' in kwargs:
             org=kwargs['original']
             cur=kwargs['current']
@@ -763,23 +774,26 @@ class OOPS:
                 while elapsed>framerate:
                     elapsed-=framerate
 
+                r=pygame.Rect(16,10,6*weightCount-1,211)
+                pygame.draw.rect(visual,bgColor,r)
                 for x in range(weightCount):
                     bar=100*self.weightAffect[x]
                     xbar=100-bar
-                    pygame.draw.line(visual,(255,0,0),(16+x*6,10),(16+x*6,10+xbar),5)
-                    pygame.draw.line(visual,(0,255,0),(16+x*6,110),(16+x*6,110-bar),5)
+                    #pygame.draw.line(visual,(255,0,0),(18+x*6,10), (18+x*6,10+xbar),5)
+                    pygame.draw.line(visual,(0,255,0),(18+x*6,110),(18+x*6,110-bar),5)
                     prevBar=100*sigmoid(org[x])
                     xPrevBar=100-prevBar
                     curBar=100*sigmoid(cur[x])
                     xCurBar=100-curBar
-                    pygame.draw.line(visual,(0,0,0),  (16+x*6,120),(16+x*6,120+xPrevBar),2)
-                    pygame.draw.line(visual,(255,0,255),(16+x*6,220),(16+x*6,220-prevBar),2)
-                    pygame.draw.line(visual,(0,0,0),  (19+x*6,120),(19+x*6,120+xCurBar),2)
-                    pygame.draw.line(visual,(128,0,255),(19+x*6,220),(19+x*6,220-curBar),2)
+                    pygame.draw.line(visual,bgColor,(16+x*6,120),(16+x*6,120+xPrevBar),2)
+                    pygame.draw.line(visual,(255,0,255),  (16+x*6,220),(16+x*6,220-prevBar),2)
+                    pygame.draw.line(visual,bgColor,(19+x*6,120),(19+x*6,120+xCurBar),2)
+                    pygame.draw.line(visual,(128,0,255),  (19+x*6,220),(19+x*6,220-curBar),2)
+                    if (x+1)<weightCount:
+                        pygame.draw.line(visual,divColor,(21+x*6,10),(21+x*6,220),1)
 
                 nameImg=font.render(self.testId,True,(160,160,224))
                 pygame.draw.rect(visual,(0,0,0),textregion)
-                
                 visual.blit(nameImg,(16,234))
 
             pygame.display.flip()
@@ -803,7 +817,9 @@ class OOPS:
         btmChg=float("Inf")
         fScale=self.maxFitness-self.minFitness
         if fScale==0.0:
-            fScale=1.0
+            fScale=float("Inf")
+        # noramlizes magnitude of modification
+        # 1.0=most, 0.0=least
         for idx in range(weightCount):
             magnitude=math.fabs(currentWts[idx]-priorWts[idx])
             change=magnitude*(netFitness/fScale)
@@ -813,7 +829,7 @@ class OOPS:
         scale=topChg-btmChg
         if scale==0.0:
             # prevent dividum byzeroum
-            scale=1e-300
+            scale=float("Inf")
         minAff=0
         maxAff=0
         for idx in range(weightCount):
@@ -825,6 +841,9 @@ class OOPS:
             maxAff=max(maxAff,affect)
         offset=minAff
         scale=maxAff-minAff
+        if scale==0.0:
+            # prevent dividum byzeroum
+            scale=float("Inf")
         for idx in range(weightCount):
             nAffect=(self.weightAffect[idx]-offset)/scale
             self.weightAffect[idx]=nAffect
@@ -860,43 +879,54 @@ class OOPS:
             # re-sort solutions by descending fitness of new evaluation regime
             self.solutions=sorted(self.solutions,key=lambda s:s[1],reverse=True)
 
-    def TrainingEpoch(self):
+    def TrainingEpoch_Backprop(self,**kwargs):
         """
-        Alternate search based trainer
+        Backpropogating trainer
 
-        Algorithm
+        with the ability to change fitness functions
+        comes an annoying problem... what is his
+        derivative?
 
-        It's like a binary search...
+        solution:
         
-        weightsearh(minT,skip=6)
-        minT is a "minimum threshold"
-        and tells us where to bottom out on the search
-        when search skip falls below minT (it is
-        halved at every step)
-        At one weight:
-            -we start with a scanning factor 'skip'
-             should be a mutliple of [-6,6]
-             such that exists integer x st: -6+x*skip==6
-            -now we evaulate the network (state is reset)
-             for i on interval [0,x] where weight=skip*i
-             we build a list of resulting fitness deltas
-            -next step is to find fitness peaks
-             a peak is define as on area of high fitness
-             bounded by low fitness. to make this accurate
-             we need to normalize each element by the total
-             fitness change (affect) across the entire search
-             interval for now I'll use the margin as .5 so a peak is
-             a point of >=.5 bounded by two lower fitnesses.
-            -if no fitness changes occur (!!!) move on to next
-             weight.  this should be rare.  just short circuit
-             to next weight (if an upstream output gate is 0
-             this could happen on a downstream input weight)
-            -keep the peaks
-            -now we iterate to remaining weights for each peak
-             in the previous
-        """
+        treat the fitness as an inverted error!
+        an increase of fitness is a decrease of error
+        if we track the min and max fitness results we can
+        get a normalized error function
+        
+        the best fitness encountered is a zero error
+        and the worst fitness encounted is an error of 1.0
+        this will be our "error delta"
 
-    def TrainingEvolutionary(self):
+        once this is done we have the usual gradient descent
+        of an error square and his derivative
+
+        it should be understood that on the first pass we have
+        a problem becuase we don't have any range of the error
+        gradient as of yet.  solution: do the activation
+        with temporarily noisified weights.  this will yield
+        a different fitness factor that can be used to bootstrap
+        the estimator.  the above process must repeat if the
+        fitness function is changed.
+
+        so we will not know in the trainer the exact output values
+        but we don't need that step... the normalized "error delta"
+        will substitute where we would normally have needed
+        expectedResult-actualResult
+        
+        """
+        ((curWt,curSt),curRk)=self.solutions[0]
+
+        learnRate=0.0001
+        if 'learnRate' in kwargs:
+            learnRate=kwargs['learnRate']
+
+        # Not done yet
+        
+        self.solutions[0]=((curWt,curSt),curRk)
+        
+
+    def TrainingEpoch(self):
         sol=self.solutions[0]
         self.loadSnapshot(self.solutions[0][0])
         self.loadWeights(self.solutions[0][0][0])
@@ -1049,7 +1079,7 @@ class OOPS:
         return []+[self.net.connections[edge] for edge in sorted(self.net.connections)]
     def saveState(self):
         nodes=self.net.nodeRefs
-        return [n.CEC for n in nodes]+[n.states['output'] for n in nodes]
+        return []+[n.CEC for n in nodes]+[n.states['output'] for n in nodes]
     def saveSnapshot(self):
         return (self.saveWeights(),self.saveState())
     
