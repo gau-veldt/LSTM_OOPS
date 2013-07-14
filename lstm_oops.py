@@ -675,10 +675,10 @@ class OOPS:
 
         # randomize initial weights
         for c in self.net.connections:
-            self.net.connections[c]=EntropySource.uniform(-6,6)
+            self.net.connections[c]=EntropySource.uniform(-.1,1)
         for n in self.net.nodeRefs:
-            n.CEC=EntropySource.uniform(-6,6)
-            n.output=EntropySource.uniform(0,1)
+            n.CEC=EntropySource.uniform(-.1,.1)
+            n.output=0.0
 
         """
         arguments to evaluator:
@@ -742,6 +742,10 @@ class OOPS:
         self.resetAffect()
         
         self.currentSolves=0
+        self.minFitness=float("inf")
+        self.maxFitness=float("-inf")
+
+        self.TrainingEpoch=self.TrainingEpoch_Backprop
 
     def evaluator(self,net,**kwargs):
         global visual,elapsed,since,framerate,font,textregion
@@ -916,6 +920,8 @@ class OOPS:
         
         """
         ((curWt,curSt),curRk)=self.solutions[0]
+        self.loadWeights(curWt)
+        self.loadState(curSt)
 
         learnRate=0.0001
         if 'learnRate' in kwargs:
@@ -926,7 +932,7 @@ class OOPS:
         self.solutions[0]=((curWt,curSt),curRk)
         
 
-    def TrainingEpoch(self):
+    def TrainingEpoch_Evolve(self):
         sol=self.solutions[0]
         #self.loadSnapshot(self.solutions[0][0])
         self.loadWeights(self.solutions[0][0][0])
@@ -1114,17 +1120,16 @@ if __name__ == "__main__":
         node_labels="A,B,C,D"
 
         connections=[
-                "AA","AB","AC","AD",
-                "BA","BB","BC","BD",
-                "CA","CB","CC","CD",
-                "DA","DB","DC","DD"
+                "AB","AC","AD",
+                "BA","BC","BD",
+                "CA","CB","CD",
+                "DA","DB","DC",
             ]
 
         input_connections=[
             "0A","0B","0C","0D",
             "1A","1B","1C","1D",
-            "2A","2B","2C","2D",
-            "00","10","20"
+            "2A","2B","2C","2D"
             ]
 
         output_connections=[
