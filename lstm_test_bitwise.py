@@ -57,12 +57,13 @@ epochCount=2500000
 EOL=13
 
 try:
-    n=buildNetwork(8,20,8,hiddenclass=LSTMLayer,outclass=LinearLayer,peepholes=True,recurrent=True)
+    n=buildNetwork(8,100,8,hiddenclass=LSTMLayer,outclass=LinearLayer,peepholes=True,recurrent=True)
     n.sortModules()
     
     ds=SupervisedDataSet(8,8)
     targets=[
-        list('Hello!'),
+        list('Hi!'),
+        #list('Hello!'),
         #list('Hello, World!'),
         #list('Division by zero'),
         #list('Stack overflow'),
