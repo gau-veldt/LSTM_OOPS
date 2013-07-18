@@ -61,7 +61,11 @@ try:
 
     ds=SequentialDataSet(1,8)
     strings=[
-        "See Bill."
+        "See Bill.",
+        "See Bill run.",
+        "See Bill run Windows.",
+        "See Windows crash.",
+        "Crash Windows, Crash!"
     ]
     targets=[
         list(s) for s in strings
