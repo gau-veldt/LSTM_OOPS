@@ -4,7 +4,7 @@ import pygame
 import random
 from pybrain.structure import LSTMLayer,LinearLayer
 from pybrain.tools.shortcuts import buildNetwork
-from pybrain.datasets import SupervisedDataSet
+from pybrain.datasets import SequentialDataSet
 from pybrain.supervised.trainers import BackpropTrainer,RPropMinusTrainer
 
 pygame.init()
@@ -59,24 +59,30 @@ EOL=13
 try:
     n=buildNetwork(8,100,8,hiddenclass=LSTMLayer,outclass=LinearLayer,peepholes=True,recurrent=True)
     n.sortModules()
-    
-    ds=SupervisedDataSet(8,8)
+
+    ds=SequentialDataSet(8,8)
     targets=[
-        list('Hi!'),
-        #list('Hello!'),
-        #list('Hello, World!'),
-        #list('Division by zero'),
-        #list('Stack overflow'),
-        #list('Null pointer'),
-        #list('Segment violation'),
-        #list('Not a number'),
-        #list('File not found'),
-        #list('Permission denied'),
-        #list('Out of memory'),
-        #list('Illegal instruction')"""
+        list('See bill.'),
+        list('See Bill run.'),
+        list('See Bill run Windows.'),
+        list('See Windows crash.'),
+        list('Crash Windows, crash!'),
     ]
     exampleCount=len(targets)
     
+    innies=[0]*8
+    expect=[0]*8
+    for t in targets:
+        ds.newSequence()
+        prevCh=EOL
+        for ch in t:
+            curCh=ord(ch)
+            for b in range(8):
+                innies[7-b]=((2**b) & prevCh)/2**b
+                expect[7-b]=((2**b) & curCh )/2**b
+            ds.addSample([]+innies,[]+expect)
+            prevCh=curCh
+            #print innies,expect
     
     print "Training sets:"
     for target in targets:
@@ -97,129 +103,127 @@ try:
     # train to learn the sequence in time. in theory it should not need input at all
     # but I give the last character output as input to sequence t+1
     # limiting epochs just to see if it is training at all within in a fixed runtime
-    while emse>=0.01 and epochs<epochCount and noskip:
+    while emse>=0.00612320 and epochs<epochCount and noskip:
         epochs+=1
-        sTargs=[]+targets
-        random.shuffle(sTargs)
         smse=0
-        for target in sTargs:
-            tCount=len(target)
+        target=targets[-1]
+        tCount=len(target)
 
-            pumpGui()
-            rendering=wantRender()
-            if quitWasRequested():
-                raise KeyboardInterrupt
-    
-            inpTicker=[' ']*tCount
-            tgtTicker=[' ']*tCount
-            outTicker=[' ']*tCount
-            innies=[0]*8
-            expect=[0]*8
-            
-            if rendering:
-                pygame.draw.rect(visual,(96,96,96),entireWindow)
-                cap="Epochs: %s/%s" % (epochs,epochCount)
-                text=font.render(cap,True,(255,255,255))
-                visual.blit(text,(4,4))
-                eps=epochs*60000/total
-                tm=total
-                tm=int(tm/1000)
-                s=str(tm%60).rjust(2,'0')
-                tm=int(tm/60)
-                m=str(tm%60).rjust(2,'0')
-                tm=int(tm/60)
-                h=str(tm%24).rjust(2,'0')
-                tm=int(tm/24)
-                d=str(tm).rjust(3,'0')
-                cap="  Time: %sd%sh%sm%ss  %s epochs/min" % (d,h,m,s,eps)
-                text=font.render(cap,True,(255,255,255))
-                visual.blit(text,(4,24))
-                eta=(total*epochCount/epochs)-total
-                tm=eta
-                tm=int(tm/1000)
-                s=str(tm%60).rjust(2,'0')
-                tm=int(tm/60)
-                m=str(tm%60).rjust(2,'0')
-                tm=int(tm/60)
-                h=str(tm%24).rjust(2,'0')
-                tm=int(tm/24)
-                d=str(tm).rjust(3,'0')
-                cap="   ETA: %sd%sh%sm%ss" % (d,h,m,s)
-                text=font.render(cap,True,(255,255,255))
-                visual.blit(text,(4,44))
-            
-            n.reset()
-            prevCh=EOL
-            prevGuess=0.0
-            se=0
-            n.reset()  # reset to t0 for training sequence
-            for i in range(tCount):
-                curCh=ord(target[i])
-                tgtTicker[i]=chr(curCh)
-                inpTicker[i]=chr(max(1,prevCh))
-                for b in range(8):
-                    innies[7-b]=((2**b) & prevCh)/2**b
-                    expect[7-b]=((2**b) & curCh )/2**b
-                #print "I:",bin(prevCh),innies
-                #print "T:",bin(curCh) ,expect
-                ds.clear()
-                # scales bytes to range [0,1]
-                ds.addSample(innies,expect)
-                #ds.addSample((prevCh/255.0,prevGuess),(curCh/255.0,))
-                err=trainer.train()
-                prevGuess=[n['out'].outputbuffer[0][b] for b in range(8)]
-                outCh=0
-                for b in range(8):
-                    bv=min(1,max(0,int(round(prevGuess[7-b]))))
-                    outCh=outCh+(2**b)*bv
-                    if bv==1:
-                        db=min(1.0,prevGuess[7-b])
-                        fb=2.0*(db-0.5)
-                        cv=108+int(round(147.0*fb))
-                        cv=(cv,cv,cv)
-                        cap="1"
-                        x=4+11*i
-                        y=290-20*b
-                        sfc=font.render(cap,True,cv)
-                        visual.blit(sfc,(x,y))
-                    else:
-                        db=max(0.0,prevGuess[7-b])
-                        fb=2.0*(0.5-db)
-                        cv=108+int(round(147.0*fb))
-                        cv=(cv,cv,cv)
-                        cap="0"
-                        x=4+11*i
-                        y=290-20*b
-                        sfc=font.render(cap,True,cv)
-                        visual.blit(sfc,(x,y))
-                    
-                if 32>outCh or 127<outCh:
-                    outCh=1
-                outTicker[i]=chr(outCh)
-                se+=err**2
-                prevCh=curCh
-            mse=math.sqrt(se)
-            smse+=mse**2
-            
-            if rendering:
-                frac=str(mse).split('.')
-                if len(frac)<2:
-                    frac.append('')
-                (w,f)=frac
-                w=w.rjust(3,'0')
-                f=f.ljust(11,'0')
-                cap="e=%s.%s" % (w,f)
-                text=font.render(cap,True,(255,255,255))
-                visual.blit(text,(4+11*23,44))
-                for i in range(tCount):
+        pumpGui()
+        rendering=wantRender()
+        if quitWasRequested():
+            raise KeyboardInterrupt
+
+        inpTicker=[' ']*tCount
+        tgtTicker=[' ']*tCount
+        outTicker=[' ']*tCount
+        
+        if rendering:
+            pygame.draw.rect(visual,(96,96,96),entireWindow)
+            cap="Epochs: %s/%s" % (epochs,epochCount)
+            text=font.render(cap,True,(255,255,255))
+            visual.blit(text,(4,4))
+            eps=epochs*60000/total
+            tm=total
+            tm=int(tm/1000)
+            s=str(tm%60).rjust(2,'0')
+            tm=int(tm/60)
+            m=str(tm%60).rjust(2,'0')
+            tm=int(tm/60)
+            h=str(tm%24).rjust(2,'0')
+            tm=int(tm/24)
+            d=str(tm).rjust(3,'0')
+            cap="  Time: %sd%sh%sm%ss  %s epochs/min" % (d,h,m,s,eps)
+            text=font.render(cap,True,(255,255,255))
+            visual.blit(text,(4,24))
+            eta=(total*epochCount/epochs)-total
+            tm=eta
+            tm=int(tm/1000)
+            s=str(tm%60).rjust(2,'0')
+            tm=int(tm/60)
+            m=str(tm%60).rjust(2,'0')
+            tm=int(tm/60)
+            h=str(tm%24).rjust(2,'0')
+            tm=int(tm/24)
+            d=str(tm).rjust(3,'0')
+            cap="   ETA: %sd%sh%sm%ss" % (d,h,m,s)
+            text=font.render(cap,True,(255,255,255))
+            visual.blit(text,(4,44))
+        
+        prevCh=EOL
+        prevGuess=0.0
+        se=0
+        n.reset()  # reset to t0 for training sequence
+        err=trainer.train()
+        se=err*err
+        for i in range(tCount):
+            curCh=ord(target[i])
+            tgtTicker[i]=chr(curCh)
+            inpTicker[i]=chr(max(1,prevCh))
+            #for b in range(8):
+            #    innies[7-b]=((2**b) & prevCh)/2**b
+            #    expect[7-b]=((2**b) & curCh )/2**b
+            #print "I:",bin(prevCh),innies
+            #print "T:",bin(curCh) ,expect
+            #ds.clear()
+            # scales bytes to range [0,1]
+            #ds.addSample([]+innies,[]+expect)
+            #ds.addSample((prevCh/255.0,prevGuess),(curCh/255.0,))
+            #err=trainer.train()
+            #print "%s: %s" % (i,n['out'].outputbuffer)
+            prevGuess=[n['out'].outputbuffer[i][b] for b in range(8)]
+            outCh=0
+            for b in range(8):
+                bv=min(1,max(0,int(round(prevGuess[7-b]))))
+                outCh=outCh+(2**b)*bv
+                if bv==1:
+                    db=min(1.0,prevGuess[7-b])
+                    fb=2.0*(db-0.5)
+                    cv=108+int(round(147.0*fb))
+                    cv=(cv,cv,cv)
+                    cap="1"
                     x=4+11*i
-                    text=font.render(inpTicker[i],True,(255,255,255))
-                    visual.blit(text,(x,84))
-                    text=font.render(tgtTicker[i],True,(255,255,255))
-                    visual.blit(text,(x,104))
-                    text=font.render(outTicker[i],True,(255,255,255))
-                    visual.blit(text,(x,124))
-                    pygame.display.flip()
+                    y=290-20*b
+                    sfc=font.render(cap,True,cv)
+                    visual.blit(sfc,(x,y))
+                else:
+                    db=max(0.0,prevGuess[7-b])
+                    fb=2.0*(0.5-db)
+                    cv=108+int(round(147.0*fb))
+                    cv=(cv,cv,cv)
+                    cap="0"
+                    x=4+11*i
+                    y=290-20*b
+                    sfc=font.render(cap,True,cv)
+                    visual.blit(sfc,(x,y))
+                
+            if 32>outCh or 127<outCh:
+                outCh=1
+            outTicker[i]=chr(outCh)
+            #se+=err**2
+            prevCh=curCh
+        mse=math.sqrt(se)
+        smse+=mse**2
+        
+        if rendering:
+            frac=str(mse).split('.')
+            if len(frac)<2:
+                frac.append('')
+            (w,f)=frac
+            w=w.rjust(3,'0')
+            f=f.ljust(11,'0')
+            cap="e=%s.%s" % (w,f)
+            text=font.render(cap,True,(255,255,255))
+            visual.blit(text,(4+11*23,44))
+            for i in range(tCount):
+                x=4+11*i
+                text=font.render(inpTicker[i],True,(255,255,255))
+                visual.blit(text,(x,84))
+                text=font.render(tgtTicker[i],True,(255,255,255))
+                visual.blit(text,(x,104))
+                text=font.render(outTicker[i],True,(255,255,255))
+                visual.blit(text,(x,124))
+                pygame.display.flip()
                     
         emse=math.sqrt(smse)
         if rendering:
@@ -239,9 +243,7 @@ try:
     n.reset()
     print "Test run:"
     inp=EOL
-    lastGuess=0.0
-    target=targets[0]
-    for k in range(len(target)):
+    for k in range(44):
         for b in range(8):
             innies[7-b]=((2**b) & inp)/2**b
         out=n.activate(innies)
@@ -260,9 +262,7 @@ try:
         ich=hex(irc)[2:].rjust(4,'0')
         ch=hex(rc)[2:].rjust(4,'0')
         print "t%s: i=%s o=%s %s" % (str(k).rjust(4,'0'),ich,ch,rCh)
-        inp=ord(target[k])
-
-    z=raw_input("Press enter to continue.")
+        inp=rc
 
 except KeyboardInterrupt:
     print "Quitting."
