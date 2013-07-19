@@ -1,0 +1,4 @@
+# Python compiled objects
+#######################################
+*.pyc
+*.pyo
