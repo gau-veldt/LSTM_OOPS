@@ -1,3 +1,4 @@
+import sys
 import math
 import subprocess
 import pygame
@@ -51,36 +52,32 @@ def pumpGui():
         while elapsed>framerate:
             elapsed-=framerate
 
-
-reportInterval=1000
 epochCount=2500000
+errGoal=0.001
 
 try:
-    n=buildNetwork(1,100,8,hiddenclass=LSTMLayer,outclass=LinearLayer,peepholes=True,recurrent=True)
+    n=buildNetwork(1,73,8,hiddenclass=LSTMLayer,outclass=LinearLayer,peepholes=True,recurrent=True)
     n.sortModules()
 
     ds=SequentialDataSet(1,8)
-    strings=[
-        "See Bill.",
-        "See Bill run.",
-        "See Bill run Windows.",
-        "See Windows crash.",
-        "Crash Windows, Crash!"
+    stories=[
+        "See Bill.\nSee Bill run.\nSee Bill run Windows.\nSee Windows crash.\nCrash Windows, Crash!\n",
     ]
     targets=[
-        list(s) for s in strings
+        list(s) for s in stories
     ]
-    exampleCount=len(targets)
     
     expect=[0]*8
     for t in targets:
         ds.newSequence()
-        for ch in t:
+        target=t
+        for ch in target:
             curCh=ord(ch)
             for b in range(8):
                 expect[7-b]=((2**b) & curCh )/2**b
-            ds.addSample([0],[]+expect)
-    
+            ds.addSample([0.0],[]+expect)
+            #print sentenceIndex,curCh
+
     print "Training..."
     #trainer=BackpropTrainer(n,dataset=ds,learningrate=.01,momentum=.2,verbose=False)
     trainer=RPropMinusTrainer(n,dataset=ds,learningrate=.01,momentum=.2,verbose=False)
@@ -91,7 +88,7 @@ try:
     # train to learn the sequence in time. in theory it should not need input at all
     # but I give the last character output as input to sequence t+1
     # limiting epochs just to see if it is training at all within in a fixed runtime
-    while emse>=0.00612320 and epochs<epochCount and noskip:
+    while emse>=errGoal and epochs<epochCount and noskip:
         epochs+=1
         smse=0
         target=targets[-1]
@@ -151,10 +148,17 @@ try:
             text=font.render(cap,True,(255,255,255))
             visual.blit(text,(xOff,44))
             pygame.display.flip()
+
+    print emse,epochs,noskip
     
     n.reset()
+    sentenceIndex=0
+    iters=0
     print "Test run:"
-    for k in range(44):
+    sys.stdout.write("%s: " % sentenceIndex)
+    sys.stdout.flush()
+    while sentenceIndex<5 and iters<100:
+        iters+=1
         out=n.activate([0])
         #out=n.activate((inp/255.0,lastGuess))
         #lastGuess=out[0]
@@ -163,12 +167,22 @@ try:
         for b in range(8):
             rc=rc+(2**b)*min(1,max(0,int(round(rv[7-b]))))
         rCh=chr(rc)
+        prCh=rCh
         if rc>=32 and rc<128:
-            rCh="'"+chr(rc)+"'"
+            prCh="'"+chr(rc)+"'"
+            sys.stdout.write(rCh)
         else:
-            rCh='non-printing'
-        ch=hex(rc)[2:].rjust(4,'0')
-        print "t%s: i=0 o=%s %s" % (str(k).rjust(4,'0'),ch,rCh)
+            prCh='non-printing'
+            sys.stdout.write(chr(127))
+        sys.stdout.flush()
+        #ch=hex(rc)[2:].rjust(4,'0')
+        #print "t%s: i=%s o=%s %s" % (str(iters).rjust(4,'0'),sentenceIndex,ch,prCh)
+        if rCh=='\n':
+            sentenceIndex+=1
+            iters=0
+            sys.stdout.write("\n%s: " % sentenceIndex)
+            sys.stdout.flush()
+    print "[EOF]"
 
 except KeyboardInterrupt:
     print "Quitting."
