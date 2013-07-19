@@ -56,7 +56,7 @@ epochCount=2500000
 errGoal=0.001
 
 try:
-    n=buildNetwork(1,73,8,hiddenclass=LSTMLayer,outclass=LinearLayer,peepholes=True,recurrent=True)
+    n=buildNetwork(1,83,8,hiddenclass=LSTMLayer,outclass=LinearLayer,peepholes=True,recurrent=True)
     n.sortModules()
 
     ds=SequentialDataSet(1,8)
